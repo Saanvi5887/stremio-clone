@@ -20,15 +20,22 @@ app.get('/trending', async (req, res) => {
 io.on('connection', (socket) => {
     socket.on('join-room', (roomId, userId) => {
         socket.join(roomId);
-        if (userId) socket.to(roomId).emit('user-connected', userId);
+        console.log(`User ${userId} joined room ${roomId}`);
+        // Broadcast to everyone else in the room that a new user joined
+        socket.to(roomId).emit('user-connected', userId);
 
-        socket.on('play-movie', (data) => socket.to(roomId).emit('start-stream', data));
-        socket.on('sync-event', (data) => socket.to(roomId).emit('apply-sync', data));
-        
+        socket.on('sync-event', (data) => {
+            socket.to(roomId).emit('apply-sync', data);
+        });
+
+        socket.on('play-movie', (data) => {
+            socket.to(roomId).emit('start-stream', data);
+        });
+
         socket.on('disconnect', () => {
             socket.to(roomId).emit('user-disconnected', userId);
         });
     });
 });
 
-server.listen(process.env.PORT || 5001, () => console.log('🚀 Theater & Call Online'));
+server.listen(process.env.PORT || 5001, () => console.log('🚀 Sync Server Active'));
