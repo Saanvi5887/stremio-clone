@@ -18,17 +18,9 @@ app.get('/trending', async (req, res) => {
 });
 
 io.on('connection', (socket) => {
-    socket.on('join-room', (roomId) => socket.join(roomId));
-    
-    socket.on('play-movie', (data) => {
-        // Sync everyone else in the room
-        socket.to(data.roomId).emit('start-stream', data);
-    });
-
-    socket.on('sync-event', (data) => {
-        socket.to(data.roomId).emit('apply-sync', data);
-    });
+    socket.on('join-room', (id) => socket.join(id));
+    socket.on('play-movie', (data) => socket.to(data.roomId).emit('start-stream', data));
+    socket.on('sync-event', (data) => socket.to(data.roomId).emit('apply-sync', data));
 });
 
-const PORT = process.env.PORT || 5001;
-server.listen(PORT, '0.0.0.0', () => console.log(`🚀 Theater Live on ${PORT}`));
+server.listen(process.env.PORT || 5001, () => console.log('🚀 Final Theater Online'));

@@ -1,38 +1,51 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8"><title>Party Theater</title>
+    <title>Theater</title>
     <style>
-        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; overflow: hidden; }
-        #video-container { width: 100vw; height: 100vh; background: #000; }
-        .info { position: fixed; bottom: 0; width: 100%; background: rgba(0,0,0,0.8); padding: 15px; display: flex; justify-content: space-between; border-top: 1px solid #00ff88; z-index: 1000; }
+        body { margin:0; background:#000; color:#fff; font-family:sans-serif; overflow:hidden; }
+        #container { width:100vw; height:100vh; background:#000; display:flex; align-items:center; justify-content:center; }
+        iframe { width:100%; height:100%; border:none; }
+        .bar { position:fixed; bottom:0; width:100%; background:rgba(0,0,0,0.8); padding:15px; display:flex; justify-content:space-between; z-index:100; border-top:1px solid #00ff88; }
     </style>
 </head>
 <body>
-    <div id="video-container"></div>
-    <div class="info">
-        <span id="title">Loading...</span>
-        <button onclick="window.location.href='/'" style="background:red; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">Exit</button>
+    <div id="container">
+        <div id="status">Starting Engine...</div>
+    </div>
+    <div class="bar">
+        <span id="movie-title"></span>
+        <button onclick="window.location.href='/'">Exit</button>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="https://controls.webtor.io/v1/index.js" charset="utf-8"></script>
+    <script src="https://controls.webtor.io/v1/index.js" onerror="useFallback()"></script>
+
     <script>
         const socket = io();
         const params = new URLSearchParams(window.location.search);
         const roomId = params.get('room');
-        document.getElementById('title').innerText = params.get('title');
+        const hash = params.get('hash');
+        const imdb = params.get('imdb');
+        document.getElementById('movie-title').innerText = params.get('title');
 
-        if (roomId) socket.emit('join-room', roomId);
+        if(roomId) socket.emit('join-room', roomId);
 
-        function start() {
+        function useFallback() {
+            console.log("WebTor Blocked. Using Iframe Fallback.");
+            const container = document.getElementById('container');
+            container.innerHTML = `<iframe src="https://vidsrc.me/embed/movie?imdb=${imdb}" allowfullscreen></iframe>`;
+        }
+
+        function init() {
             if (typeof window.webtor === 'undefined') {
-                setTimeout(start, 1000);
+                useFallback();
                 return;
             }
+
             window.webtor.push({
-                id: 'video-container',
-                hash: params.get('hash'),
+                id: 'container',
+                hash: hash,
                 onReady: (p) => {
                     p.on('play', () => socket.emit('sync-event', { roomId, type: 'play', time: p.getCurrentTime() }));
                     p.on('pause', () => socket.emit('sync-event', { roomId, type: 'pause', time: p.getCurrentTime() }));
@@ -40,10 +53,17 @@
                         if (Math.abs(p.getCurrentTime() - d.time) > 2) p.seek(d.time);
                         d.type === 'play' ? p.play() : p.pause();
                     });
-                }
+                },
+                onError: () => useFallback()
             });
         }
-        start();
+
+        // Final safety check
+        setTimeout(() => {
+            if (document.getElementById('status')) useFallback();
+        }, 8000);
+
+        init();
     </script>
 </body>
 </html>
