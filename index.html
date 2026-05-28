@@ -195,6 +195,7 @@
         }
 
         // 3. Stream Fetching & Sync Emission
+        // 3. Stream Fetching & Sync Emission
         async function fetchStreams(tmdbId, title) {
             if (!currentRoom) return alert("Join a room first!");
             
@@ -226,27 +227,43 @@
                 streams.slice(0, 8).forEach(s => {
                     const item = document.createElement('div');
                     item.className = 'stream-item';
+                    
+                    // Identify quality for the label
                     const quality = s.title.includes('1080') ? '1080p' : (s.title.includes('720') ? '720p' : 'SD');
                     item.innerHTML = `<strong>${s.name} [${quality}]</strong><br><small>${s.title.split('\n')[0]}</small>`;
                     
-                    item.onclick = () => {
-                        console.log("Broadcasting movie selection to room...");
-                        // This sends the infoHash and IMDB ID to the server, 
-                        // which then tells EVERYONE to move to player.html
-                        socket.emit('play-movie', { 
+                    // FIXED ONCLICK: Explicitly passing the infoHash
+                    item.onclick = function() {
+                        const streamData = { 
                             roomId: currentRoom, 
-                            infoHash: s.infoHash, 
+                            infoHash: s.infoHash, // This was likely undefined before
                             title: title,
                             imdb: currentImdbId 
-                        });
+                        };
+                        console.log("Selected Stream Hash:", s.infoHash);
+                        socket.emit('play-movie', streamData);
                     };
                     list.appendChild(item);
                 });
 
             } catch (e) {
+                console.error(e);
                 list.innerHTML = `<div style="color: #ff4444;">Error fetching links. Try again.</div>`;
             }
         }
+
+        // 4. Global Redirect Listener
+        socket.on('start-stream', (data) => {
+            console.log("Sync initiated. Moving to Theater...");
+            // Use URLSearchParams for clean encoding
+            const params = new URLSearchParams({
+                hash: data.infoHash,
+                title: data.title,
+                room: data.roomId,
+                imdb: data.imdb
+            });
+            window.location.href = `/player?${params.toString()}`;
+        });
 
         // 4. Global Redirect Listener
         socket.on('start-stream', (data) => {
