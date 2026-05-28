@@ -1,82 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Party Theater</title>
+    <meta charset="UTF-8"><title>Party Theater</title>
     <style>
         body { margin: 0; background: #000; color: #fff; font-family: sans-serif; overflow: hidden; }
-        #video-container { width: 100vw; height: 100vh; background: #000; display: flex; align-items: center; justify-content: center; }
-        .info-bar { position: fixed; bottom: 0; width: 100%; background: rgba(0,0,0,0.9); padding: 15px; display: flex; justify-content: space-between; align-items: center; z-index: 1000; border-top: 1px solid #00ff88; }
-        #log-status { font-size: 12px; color: #00ff88; margin-left: 20px; font-family: monospace; }
-        .controls { display: flex; gap: 10px; align-items: center; }
-        button { border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        .btn-exit { background: #ff4444; color: white; }
-        .btn-retry { background: #00ff88; color: black; display: none; }
+        #video-container { width: 100vw; height: 100vh; background: #000; }
+        .info { position: fixed; bottom: 0; width: 100%; background: rgba(0,0,0,0.8); padding: 15px; display: flex; justify-content: space-between; border-top: 1px solid #00ff88; z-index: 1000; }
     </style>
 </head>
 <body>
-
-    <div id="video-container">
-        <div id="loading-fallback">🎬 Ready to buffer... Select a stream or wait.</div>
-    </div>
-
-    <div class="info-bar">
-        <div>
-            <span id="movie-title" style="font-weight: bold;"></span>
-            <span id="log-status">Detecting SDK...</span>
-        </div>
-        <div class="controls">
-            <button id="retry-btn" class="btn-retry" onclick="location.reload()">Force Refresh</button>
-            <button class="btn-exit" onclick="window.location.href='/'">Exit</button>
-        </div>
+    <div id="video-container"></div>
+    <div class="info">
+        <span id="title">Loading...</span>
+        <button onclick="window.location.href='/'" style="background:red; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">Exit</button>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://controls.webtor.io/v1/index.js" charset="utf-8"></script>
-
     <script>
         const socket = io();
         const params = new URLSearchParams(window.location.search);
         const roomId = params.get('room');
-        const hash = params.get('hash');
-        const title = params.get('title');
-
-        document.getElementById('movie-title').innerText = title || "Movie";
-        const statusEl = document.getElementById('log-status');
-        const retryBtn = document.getElementById('retry-btn');
+        document.getElementById('title').innerText = params.get('title');
 
         if (roomId) socket.emit('join-room', roomId);
 
-        function init() {
+        function start() {
             if (typeof window.webtor === 'undefined') {
-                statusEl.innerText = "SDK Blocked? Check AdBlock.";
-                setTimeout(init, 2000);
+                setTimeout(start, 1000);
                 return;
             }
-
-            statusEl.innerText = "Connecting to peers...";
-            // Show retry button after 15 seconds if nothing happens
-            setTimeout(() => { retryBtn.style.display = 'block'; }, 15000);
-
             window.webtor.push({
                 id: 'video-container',
-                hash: hash,
-                onReady: (player) => {
-                    statusEl.innerText = "BUFFERING / ACTIVE";
-                    document.getElementById('loading-fallback').style.display = 'none';
-
-                    player.on('play', () => socket.emit('sync-event', { roomId, type: 'play', time: player.getCurrentTime() }));
-                    player.on('pause', () => socket.emit('sync-event', { roomId, type: 'pause', time: player.getCurrentTime() }));
-
-                    socket.on('apply-sync', (data) => {
-                        if (Math.abs(player.getCurrentTime() - data.time) > 2) player.seek(data.time);
-                        data.type === 'play' ? player.play() : player.pause();
+                hash: params.get('hash'),
+                onReady: (p) => {
+                    p.on('play', () => socket.emit('sync-event', { roomId, type: 'play', time: p.getCurrentTime() }));
+                    p.on('pause', () => socket.emit('sync-event', { roomId, type: 'pause', time: p.getCurrentTime() }));
+                    socket.on('apply-sync', (d) => {
+                        if (Math.abs(p.getCurrentTime() - d.time) > 2) p.seek(d.time);
+                        d.type === 'play' ? p.play() : p.pause();
                     });
                 }
             });
         }
-
-        init();
+        start();
     </script>
 </body>
 </html>
