@@ -1,148 +1,162 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Party Theater</title>
+    <title>Party Theater Pro</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://controls.webtor.io/v1/index.js" charset="utf-8"></script>
     <style>
-        body { margin:0; background:#000; color:#fff; font-family:sans-serif; display:flex; height:100vh; width:100vw; overflow:hidden; }
-        
-        /* Main Theater Area */
+        body { margin:0; background:#000; color:#fff; font-family:sans-serif; display:flex; height:100vh; overflow:hidden; }
         #theater { flex: 1; position: relative; background: #000; display: flex; flex-direction: column; }
-        #video-container { flex: 1; width:100%; height:100%; position: relative; z-index: 1; }
-        iframe { width: 100%; height: 100%; border: none; }
-
-        /* Sidebar for Friends */
-        #sidebar { width: 240px; background: #0a0a0a; border-left: 2px solid #00ff88; display: flex; flex-direction: column; padding: 10px; gap: 10px; overflow-y: auto; z-index: 10; }
-        video { width: 100%; border-radius: 8px; border: 1px solid #333; background: #000; transform: scaleX(-1); }
-        .label { font-size: 10px; color: #00ff88; text-transform: uppercase; margin-bottom: 2px; }
-
-        /* Floating Controls - FIXED VISIBILITY */
-        .controls-bar { 
-            position: absolute; 
-            bottom: 20px; 
-            left: 50%; 
-            transform: translateX(-50%); 
-            background: rgba(0,0,0,0.9); 
-            padding: 12px 25px; 
-            border-radius: 50px; 
-            border: 1px solid #00ff88; 
-            display: flex; 
-            gap: 20px; 
-            align-items: center; 
-            z-index: 9999; /* Ensures it sits on top of everything */
-            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
-        }
+        #video-container { flex: 1; width:100%; height:100%; position: relative; }
         
-        .btn { background: none; border: none; color: white; cursor: pointer; font-weight: bold; font-size: 14px; display: flex; align-items: center; gap: 8px; }
-        .btn-exit { color: #ff4444; margin-left: 10px; border-left: 1px solid #333; padding-left: 15px; }
-        .status-msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ff88; font-family: monospace; }
+        /* THE NEW PLAYER CONTROLS BAR */
+        #custom-controls {
+            position: absolute;
+            bottom: 80px; /* Sits above the Cam/Mic bar */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 800px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 10px 20px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 10000;
+            border: 1px solid #444;
+        }
+
+        .progress-row { display: flex; align-items: center; gap: 10px; width: 100%; }
+        #progress-bar { flex: 1; cursor: pointer; accent-color: #00ff88; }
+        .time-display { font-size: 12px; font-family: monospace; color: #aaa; min-width: 80px; }
+
+        .buttons-row { display: flex; align-items: center; gap: 20px; }
+        .play-btn { background: none; border: none; color: #00ff88; font-size: 20px; cursor: pointer; }
+
+        /* THE CAM/MIC BAR */
+        .room-bar { 
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
+            background: #111; padding: 10px 20px; border-radius: 50px; border: 1px solid #00ff88;
+            display: flex; gap: 20px; z-index: 10001;
+        }
+
+        #sidebar { width: 240px; background: #0a0a0a; border-left: 2px solid #00ff88; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+        video { width: 100%; border-radius: 8px; transform: scaleX(-1); background: #000; }
+        button { background: none; border: none; color: white; cursor: pointer; font-weight: bold; }
+        iframe { width: 100%; height: 100%; border: none; }
     </style>
 </head>
 <body>
     <div id="theater">
         <div id="video-container">
-            <div id="loading-text" class="status-msg">STABILIZING PARTY STREAM...</div>
+            <div id="loading" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#00ff88;">LOADING THEATER...</div>
         </div>
         
-        <div class="controls-bar">
-            <span id="m-title" style="color:#00ff88; border-right: 1px solid #333; padding-right: 15px; max-width: 150px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">Loading...</span>
-            <button class="btn" onclick="toggleCam()">📷 <span id="cam-txt">Cam On</span></button>
-            <button class="btn" onclick="toggleMic()">🎤 <span id="mic-txt">Mic On</span></button>
-            <button class="btn btn-exit" onclick="window.location.href='/'">EXIT</button>
+        <div id="custom-controls">
+            <div class="progress-row">
+                <span id="current-time" class="time-display">00:00</span>
+                <input type="range" id="progress-bar" value="0" min="0" max="100">
+                <span id="total-time" class="time-display">00:00</span>
+            </div>
+            <div class="buttons-row">
+                <button class="play-btn" id="master-play-pause">▶</button>
+                <span style="font-size: 12px; color: #666;">Party Sync Active</span>
+            </div>
+        </div>
+
+        <div class="room-bar">
+            <button onclick="toggleCam()">📷 Cam</button>
+            <button onclick="toggleMic()">🎤 Mic</button>
+            <button onclick="window.location.href='/'" style="color:#ff4444">EXIT</button>
         </div>
     </div>
 
     <div id="sidebar">
-        <div class="label">You</div>
         <video id="my-cam" autoplay muted playsinline></video>
-        <div class="label" style="margin-top:10px;">Friends</div>
         <div id="friend-cams"></div>
     </div>
 
     <script>
         const params = new URLSearchParams(window.location.search);
         const roomId = params.get('room');
-        const hash = params.get('hash');
-        const imdb = params.get('imdb');
-        document.getElementById('m-title').innerText = params.get('title');
-
         const socket = io();
         const peer = new Peer();
         let myStream;
+        let playerRef = null;
 
-        // 1. BACK TO BASICS: Camera & Audio Restore
+        // 1. Camera/Mic Logic
         async function initCamera() {
-            try {
-                // Simplified grab to ensure audio and laptop cam work immediately
-                myStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                document.getElementById('my-cam').srcObject = myStream;
-
-                peer.on('call', call => {
-                    call.answer(myStream);
-                    handleRemoteStream(call);
-                });
-
-                socket.on('user-connected', id => {
-                    const call = peer.call(id, myStream);
-                    handleRemoteStream(call);
-                });
-            } catch (err) { alert("Please allow Camera/Mic access to hear/see friends!"); }
-        }
-
-        function toggleCam() {
-            const track = myStream.getVideoTracks()[0];
-            track.enabled = !track.enabled;
-            document.getElementById('cam-txt').innerText = track.enabled ? "Cam On" : "Cam Off";
-        }
-
-        function toggleMic() {
-            const track = myStream.getAudioTracks()[0];
-            track.enabled = !track.enabled;
-            document.getElementById('mic-txt').innerText = track.enabled ? "Mic On" : "Mic Off";
-        }
-
-        function handleRemoteStream(call) {
-            const vid = document.createElement('video');
-            vid.autoplay = true; vid.playsinline = true;
-            // IMPORTANT: Audio is enabled for remote streams so you can hear friends
-            call.on('stream', s => { 
-                vid.srcObject = s; 
-                document.getElementById('friend-cams').append(vid); 
+            myStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            document.getElementById('my-cam').srcObject = myStream;
+            peer.on('call', call => {
+                call.answer(myStream);
+                const vid = document.createElement('video');
+                call.on('stream', s => { vid.srcObject = s; vid.autoplay = true; document.getElementById('friend-cams').append(vid); });
+            });
+            socket.on('user-connected', id => {
+                const call = peer.call(id, myStream);
+                const vid = document.createElement('video');
+                call.on('stream', s => { vid.srcObject = s; vid.autoplay = true; document.getElementById('friend-cams').append(vid); });
             });
         }
 
+        function toggleCam() { myStream.getVideoTracks()[0].enabled = !myStream.getVideoTracks()[0].enabled; }
+        function toggleMic() { myStream.getAudioTracks()[0].enabled = !myStream.getAudioTracks()[0].enabled; }
+
         peer.on('open', id => socket.emit('join-room', roomId, id));
 
-        // 2. PLAYER LOGIC
-        function launchFallback() {
-            const container = document.getElementById('video-container');
-            if (container.innerHTML.includes('iframe')) return; 
-            container.innerHTML = `<iframe src="https://vidsrc.me/embed/movie?imdb=${imdb}" allowfullscreen></iframe>`;
-        }
-
+        // 2. Movie Logic & Custom UI Bridge
         function startTheater() {
-            if (typeof window.webtor === 'undefined') { launchFallback(); return; }
+            if (typeof window.webtor === 'undefined') {
+                document.getElementById('video-container').innerHTML = `<iframe src="https://vidsrc.me/embed/movie?imdb=${params.get('imdb')}" allowfullscreen></iframe>`;
+                return;
+            }
             window.webtor.push({
                 id: 'video-container',
-                hash: hash,
+                hash: params.get('hash'),
                 onReady: (p) => {
-                    document.getElementById('loading-text').style.display = 'none';
+                    playerRef = p;
+                    document.getElementById('loading').style.display = 'none';
+
+                    // Update UI every second
+                    setInterval(() => {
+                        const cur = p.getCurrentTime();
+                        const dur = p.getDuration();
+                        document.getElementById('current-time').innerText = formatTime(cur);
+                        document.getElementById('total-time').innerText = formatTime(dur);
+                        document.getElementById('progress-bar').value = (cur / dur) * 100;
+                    }, 1000);
+
+                    // Custom Controls Actions
+                    document.getElementById('master-play-pause').onclick = () => {
+                        if (p.isPaused()) { p.play(); } else { p.pause(); }
+                    };
+
+                    document.getElementById('progress-bar').oninput = (e) => {
+                        const seekTo = (e.target.value / 100) * p.getDuration();
+                        p.seek(seekTo);
+                    };
+
+                    // SYNC LOGIC
                     p.on('play', () => socket.emit('sync-event', { roomId, type: 'play', time: p.getCurrentTime() }));
                     p.on('pause', () => socket.emit('sync-event', { roomId, type: 'pause', time: p.getCurrentTime() }));
                     socket.on('apply-sync', (d) => {
                         if (Math.abs(p.getCurrentTime() - d.time) > 2) p.seek(d.time);
                         d.type === 'play' ? p.play() : p.pause();
                     });
-                },
-                onError: () => launchFallback()
+                }
             });
         }
 
-        // Fast fallback if torrent fails
-        setTimeout(() => { if (document.getElementById('loading-text')) launchFallback(); }, 5000);
-        
+        function formatTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            return h > 0 ? `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : `${m}:${s.toString().padStart(2,'0')}`;
+        }
+
         initCamera();
         startTheater();
     </script>
