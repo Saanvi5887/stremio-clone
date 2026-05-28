@@ -8,9 +8,10 @@
         iframe { width: 100%; height: 100%; border: none; }
         .footer { padding: 15px 30px; background: #111; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #333; }
         .back-btn { background: #00ff88; color: black; padding: 10px 20px; border-radius: 20px; text-decoration: none; font-weight: bold; transition: 0.2s; }
-        .server-btn { background: #333; color: white; padding: 8px 15px; border-radius: 5px; border: 1px solid #444; cursor: pointer; margin-left: 10px; font-size: 0.8rem; }
-        .server-btn.active { border-color: #00ff88; color: #00ff88; }
-        .room-badge { background: #222; padding: 5px 15px; border-radius: 15px; font-size: 0.8rem; color: #00ff88; border: 1px solid #00ff88; }
+        .server-btn { background: #222; color: #ccc; padding: 8px 15px; border-radius: 5px; border: 1px solid #444; cursor: pointer; margin-left: 10px; font-size: 0.8rem; transition: 0.3s; }
+        .server-btn:hover { background: #333; border-color: #00ff88; }
+        .server-btn.active { border-color: #00ff88; color: #00ff88; background: #0a251a; }
+        .room-badge { background: #1a1a1a; padding: 5px 15px; border-radius: 15px; font-size: 0.8rem; color: #00ff88; border: 1px solid #00ff88; }
     </style>
 </head>
 <body>
@@ -20,16 +21,17 @@
     
     <div class="footer">
         <div id="movie-info">
-            <h2 id="movie-title" style="margin:0; font-size: 1.2rem;">Loading...</h2>
-            <div style="margin-top: 5px; display: flex; align-items: center;">
+            <h2 id="movie-title" style="margin:0; font-size: 1.1rem;">Loading...</h2>
+            <div style="margin-top: 8px; display: flex; align-items: center;">
                 <span id="room-display"></span>
-                <span style="margin-left: 20px; color: #888; font-size: 0.8rem;">Try another server if it fails:</span>
-                <button class="server-btn active" onclick="changeServer('vidsrc.pro', this)">Server 1</button>
-                <button class="server-btn" onclick="changeServer('vidsrc.me', this)">Server 2</button>
-                <button class="server-btn" onclick="changeServer('2embed.cc', this)">Server 3</button>
+                <div id="server-list" style="margin-left: 20px;">
+                    <button class="server-btn active" onclick="changeServer('vidsrc.pro', this)">Server 1</button>
+                    <button class="server-btn" onclick="changeServer('vidsrc.to', this)">Server 2</button>
+                    <button class="server-btn" onclick="changeServer('superembed', this)">Server 3</button>
+                </div>
             </div>
         </div>
-        <a href="/app" class="back-btn">Exit Theater</a>
+        <a href="/" class="back-btn">Exit Theater</a>
     </div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -41,33 +43,37 @@
         const roomId = params.get('room');
 
         document.getElementById('movie-title').innerText = title || "Now Playing";
+        
         if (roomId) {
             document.getElementById('room-display').innerHTML = `<span class="room-badge">Room: ${roomId}</span>`;
             socket.emit('join-room', roomId);
         }
 
-        // Default to vidsrc.pro as it's the most stable
-        function changeServer(domain, btn) {
+        function changeServer(provider, btn) {
             const frame = document.getElementById('movie-frame');
             
-            // Highlight active button
+            // UI Cleanup
             document.querySelectorAll('.server-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
-            if (domain === 'vidsrc.pro') {
+            // Switch Sources
+            if (provider === 'vidsrc.pro') {
                 frame.src = `https://vidsrc.pro/embed/movie/${imdbId}`;
-            } else if (domain === 'vidsrc.me') {
-                frame.src = `https://vidsrc.me/embed/movie?imdb=${imdbId}`;
+            } else if (provider === 'vidsrc.to') {
+                frame.src = `https://vidsrc.to/embed/movie/${imdbId}`;
             } else {
-                frame.src = `https://www.2embed.cc/embed/${imdbId}`;
+                frame.src = `https://multiembed.mov/?video_id=${imdbId}&tmdb=0`;
             }
         }
 
-        // Initial Load
+        // Auto-load Server 1
         if (imdbId) {
-            changeServer('vidsrc.pro', document.querySelectorAll('.server-btn')[0]);
+            changeServer('vidsrc.pro', document.querySelector('.server-btn'));
+        } else {
+            alert("Error: No IMDB ID found in URL");
         }
 
+        // Stay Synced
         socket.on('start-stream', (data) => {
             if (data.imdb !== imdbId) {
                 window.location.href = `/player?imdb=${data.imdb}&title=${encodeURIComponent(data.title)}&room=${roomId}`;
