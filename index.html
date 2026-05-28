@@ -12,9 +12,8 @@
         input { background: rgba(0, 0, 0, 0.3); border: 1px solid #444; color: white; padding: 12px 20px; border-radius: 30px; outline: none; width: 180px; margin-bottom: 10px; }
         button { padding: 12px 25px; border-radius: 30px; border: none; cursor: pointer; font-weight: bold; background: #00ff88; color: black; transition: 0.2s; margin: 5px; }
         button:hover { background: #00cc6e; transform: scale(1.05); }
-        button:disabled { background: #555; cursor: not-allowed; }
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 35px; }
-        .card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; overflow: hidden; cursor: pointer; transition: 0.3s; position: relative; }
+        .card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; overflow: hidden; cursor: pointer; transition: 0.3s; }
         .card:hover { transform: translateY(-10px); border-color: #00ff88; }
         .card img { width: 100%; height: 300px; object-fit: cover; }
         .card h3 { padding: 15px; font-size: 0.9rem; text-align: center; color: #fff; margin: 0; }
@@ -31,8 +30,8 @@
     <div class="controls-container">
         <div class="input-group">
             <input type="text" id="room-input" placeholder="Enter Room ID">
-            <button id="join-btn" onclick="joinRoom()">Join Room</button>
-            <button id="create-btn" onclick="createPrivateRoom()" style="background:#333; color:white;">Create Room</button>
+            <button onclick="joinRoom()">Join Room</button>
+            <button onclick="createPrivateRoom()" style="background:#333; color:white;">Create Room</button>
             <p id="room-status" style="font-size: 0.8rem; color: #888; margin-top: 10px;">Not in a room</p>
         </div>
     </div>
@@ -51,6 +50,13 @@
         const socket = io();
         let currentRoom = null;
 
+        // FIXED: Generates room ID in the browser so no server fetch is needed
+        function createPrivateRoom() {
+            const randomId = Math.random().toString(36).substring(2, 8);
+            document.getElementById('room-input').value = randomId;
+            joinRoom();
+        }
+
         function joinRoom() {
             const inputVal = document.getElementById('room-input').value.trim();
             if (!inputVal) return alert("Enter Room ID");
@@ -58,23 +64,6 @@
             socket.emit('join-room', currentRoom);
             document.getElementById('room-status').innerText = "Connected: " + currentRoom;
             document.getElementById('room-status').style.color = "#00ff88";
-        }
-
-        async function createPrivateRoom() {
-            const btn = document.getElementById('create-btn');
-            btn.disabled = true;
-            btn.innerText = "Creating...";
-            try {
-                const res = await fetch('/generate-room');
-                const data = await res.json();
-                document.getElementById('room-input').value = data.roomId;
-                joinRoom();
-            } catch (err) {
-                alert("Server connection failed. Try again.");
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "Create Room";
-            }
         }
 
         async function loadMovies() {
@@ -90,7 +79,7 @@
                     card.innerHTML = `<img src="https://image.tmdb.org/t/p/w500${m.poster_path}"><h3>${m.title}</h3>`;
                     grid.appendChild(card);
                 });
-            } catch (e) { console.error("Trending fetch failed"); }
+            } catch (e) { console.error("Movie fetch error"); }
         }
 
         async function fetchStreams(tmdbId, title) {
@@ -104,17 +93,12 @@
                 const movieData = await tmdbRes.json();
                 const imdbId = movieData.imdb_id;
 
-                if (!imdbId) throw new Error("IMDB ID missing");
-
                 const streamRes = await fetch(`https://torrentio.strem.fun/stream/movie/${imdbId}.json`);
                 const data = await streamRes.json();
                 
-                if (!data.streams || data.streams.length === 0) {
-                    list.innerHTML = "❌ No active streams found.";
-                    return;
-                }
-
                 list.innerHTML = '';
+                if (!data.streams) throw new Error("No streams");
+
                 data.streams.slice(0, 10).forEach(s => {
                     const item = document.createElement('div');
                     item.className = 'stream-item';
@@ -130,7 +114,7 @@
                     list.appendChild(item);
                 });
             } catch (e) {
-                list.innerHTML = "❌ Failed to fetch streams.";
+                list.innerHTML = "❌ Failed to fetch links.";
             }
         }
 
