@@ -8,89 +8,60 @@ const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
 
-// Middlewares
-app.use(cors());
-app.use(express.static(path.join(__dirname))); // Serves CSS/JS files if you add them later
+// FIX 1: Open up CORS completely
+app.use(cors({ origin: "*" }));
 
-// --- ROUTES ---
-
-// Home route (Fixes "Cannot GET /")
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+const io = new Server(server, { 
+    cors: { origin: "*", methods: ["GET", "POST"] } 
 });
 
-// App/Lobby route
-app.get('/app', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
+app.use(express.static(path.join(__dirname)));
 
-// Player route (Fixes "Cannot GET /player")
-app.get('/player', (req, res) => {
-    res.sendFile(path.join(__dirname, 'player.html'));
-});
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/player', (req, res) => res.sendFile(path.join(__dirname, 'player.html')));
 
-// Private Room ID Generator
 app.get('/generate-room', (req, res) => {
     const privateId = crypto.randomBytes(4).toString('hex'); 
     res.json({ roomId: privateId });
 });
 
-// TMDB API Integration
 const API_KEY = 'd800759469a13ad76fd7f48830a046a8';
 app.get('/trending', async (req, res) => {
     try {
         const response = await axios.get(`https://api.themoviedb.org/3/trending/movie/week?api_key=${API_KEY}`);
         res.json(response.data.results);
-    } catch (e) { 
-        res.status(500).json({ error: "TMDB API Failed" }); 
-    }
+    } catch (e) { res.status(500).json({ error: "TMDB Failed" }); }
 });
 
-// Torrentio Stream Integration
+// FIX 2: Better stream fetching with Headers
 app.get('/streams/:id', async (req, res) => {
     try {
         const imdbId = req.params.id;
-        console.log(`Searching streams for: ${imdbId}`);
-        
-        // Ensure we are calling the correct Torrentio URL format
         const url = `https://torrentio.strem.fun/stream/movie/${imdbId}.json`;
-        const response = await axios.get(url, { timeout: 5000 }); // 5 second timeout
+        
+        const response = await axios.get(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            },
+            timeout: 8000
+        });
         
         res.json(response.data.streams || []);
-    } catch (e) { 
-        console.error("Torrentio Error:", e.message);
-        res.status(500).json({ error: "Torrentio Failed", details: e.message }); 
+    } catch (e) {
+        console.error("Fetch Error:", e.message);
+        res.status(500).json({ error: "Torrentio blocked the request or timed out" });
     }
 });
 
-// --- SOCKET.IO LOGIC ---
 io.on('connection', (socket) => {
-    console.log('User connected:', socket.id);
-
-    socket.on('join-room', (roomId) => {
-        socket.join(roomId);
-        console.log(`User joined room: ${roomId}`);
-    });
-    
-    socket.on('play-movie', (data) => {
-        // Broadcasts to everyone in the room to start the movie
-        io.to(data.roomId).emit('start-stream', data);
-    });
-
-    socket.on('sync-action', (data) => {
-        // Syncs pause/play/seek actions
-        socket.to(data.roomId).emit('apply-sync', data);
-    });
-
-    socket.on('disconnect', () => {
-        console.log('User disconnected');
-    });
+    socket.on('join-room', (roomId) => socket.join(roomId));
+    socket.on('play-movie', (data) => io.to(data.roomId).emit('start-stream', data));
+    socket.on('sync-action', (data) => socket.to(data.roomId).emit('apply-sync', data));
 });
 
-// --- SERVER START (REVISED) ---
-const PORT = process.env.PORT || 5001; 
+const PORT = process.env.PORT || 5001;
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 GLOBAL SERVER LIVE ON PORT ${PORT}`);
+    console.log(`🚀 SERVER RUNNING ON PORT ${PORT}`);
 });
