@@ -1,28 +1,35 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Party Sync Pro | The Final Fix</title>
+    <title>Party Sync Pro</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { margin:0; background:#111; color:#fff; font-family:sans-serif; display:flex; height:100vh; }
-        #main-content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
-        #sidebar { width: 280px; background: #000; border-left: 2px solid #00ff88; padding: 15px; display: flex; flex-direction: column; gap: 15px; }
-        .cam-box { width: 100%; border-radius: 10px; background: #222; border: 1px solid #333; overflow: hidden; }
-        video.cam { width: 100%; transform: scaleX(-1); display: block; }
-        .tag { font-size: 11px; color: #00ff88; font-weight: bold; margin-bottom: 5px; }
+        body { margin:0; background:#0a0a0a; color:#fff; font-family:sans-serif; display:flex; height:100vh; overflow:hidden; }
+        #main-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
         
-        .movie-card { background: #222; padding: 30px; border-radius: 15px; border: 1px solid #00ff88; max-width: 400px; }
-        .sync-btn { background: #00ff88; color: #000; padding: 15px 30px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 20px; text-decoration: none; display: inline-block; }
+        /* THE MOVIE BUTTON */
+        .movie-box { background: #1a1a1a; padding: 40px; border-radius: 20px; border: 2px solid #00ff88; box-shadow: 0 0 20px rgba(0,255,136,0.2); }
+        .play-btn { 
+            background: #00ff88; color: #000; padding: 20px 40px; 
+            text-decoration: none; font-weight: bold; font-size: 20px; 
+            border-radius: 10px; display: inline-block; margin-top: 20px;
+        }
+
+        #sidebar { width: 280px; background: #000; border-left: 2px solid #333; padding: 15px; display: flex; flex-direction: column; gap: 15px; }
+        .cam-box { width: 100%; border-radius: 12px; background: #222; overflow: hidden; border: 1px solid #444; }
+        video.cam { width: 100%; transform: scaleX(-1); display: block; }
+        .tag { font-size: 11px; color: #00ff88; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div id="main-content">
-        <div class="movie-card">
-            <h2 id="m-title">Loading Movie...</h2>
-            <p>The internal player was blocked by your browser. Click the button below to open the movie in a new "Sync Tab."</p>
-            <a id="movie-link" href="#" target="_blank" class="sync-btn">🚀 OPEN MOVIE TAB</a>
-            <p style="font-size: 12px; color: #888; margin-top: 15px;">Tip: Both users click this, then count "3, 2, 1, Play!"</p>
+    <div id="main-area">
+        <div class="movie-box">
+            <h1 id="movie-title">Loading Movie...</h1>
+            <p>Brave/Chrome blocked the internal player.</p>
+            <p>Click below to open the movie in a new tab!</p>
+            <a id="external-link" href="#" target="_blank" class="play-btn">🎬 WATCH MOVIE</a>
+            <p style="color: #666; font-size: 12px; margin-top: 20px;">Keep this tab open for the video call!</p>
         </div>
     </div>
 
@@ -37,20 +44,24 @@
         const params = new URLSearchParams(window.location.search);
         const roomId = params.get('room');
         const imdb = params.get('imdb');
-        const title = params.get('title') || "Your Movie";
+        const title = params.get('title') || "The Movie";
+        
+        document.getElementById('movie-title').innerText = decodeURIComponent(title);
+        document.getElementById('external-link').href = `https://vidsrc.me/embed/movie?imdb=${imdb}`;
+
         const socket = io();
         const peer = new Peer();
-
-        document.getElementById('m-title').innerText = decodeURIComponent(title);
-        // We provide a direct link that the browser won't block as a "resource"
-        document.getElementById('movie-link').href = `https://vidsrc.to/embed/movie/${imdb}`;
 
         async function initCams() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
                 document.getElementById('my-cam').srcObject = stream;
-                peer.on('call', c => { c.answer(stream); c.on('stream', s => addFriend(s, c.peer)); });
                 
+                peer.on('call', c => {
+                    c.answer(stream);
+                    c.on('stream', s => addFriend(s, c.peer));
+                });
+
                 peer.on('open', id => socket.emit('join-room', roomId, id));
                 socket.on('user-connected', userId => {
                     setTimeout(() => {
@@ -58,7 +69,7 @@
                         call.on('stream', s => addFriend(s, userId));
                     }, 1000);
                 });
-            } catch (e) { alert("Enable camera for the call!"); }
+            } catch (e) { console.log("Cam failed"); }
         }
 
         function addFriend(stream, id) {
