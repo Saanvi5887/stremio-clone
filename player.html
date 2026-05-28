@@ -6,48 +6,48 @@
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { margin:0; background:#000; color:#fff; font-family:sans-serif; display:flex; height:100vh; overflow:hidden; }
-        #theater { flex: 1; position: relative; display: flex; flex-direction: column; }
-        #video-container { flex: 1; width:100%; height:100%; }
-        iframe { width: 100%; height: 100%; border: none; }
+        #theater { flex: 1; position: relative; display: flex; flex-direction: column; background: #000; }
+        #video-container { flex: 1; display: flex; align-items: center; justify-content: center; }
+        video#main-movie { width: 100%; max-height: 100%; background: #000; }
         
-        /* FIXED CONTROL BAR */
         .controls {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 80%; background: rgba(0,0,0,0.9); padding: 15px;
-            border-radius: 10px; border: 1px solid #00ff88; display: flex; 
-            flex-direction: column; gap: 10px; z-index: 1000;
+            width: 90%; max-width: 800px; background: rgba(10, 10, 10, 0.9);
+            padding: 15px; border-radius: 10px; border: 1px solid #00ff88;
+            display: flex; flex-direction: column; gap: 10px; z-index: 1000;
         }
-        .row { display: flex; justify-content: center; gap: 15px; }
+        .btn-row { display: flex; justify-content: center; gap: 15px; }
         
-        /* SIDEBAR */
-        #sidebar { width: 250px; background: #050505; border-left: 1px solid #333; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
-        video { width: 100%; border-radius: 8px; background: #222; transform: scaleX(-1); }
-        .tag { font-size: 10px; color: #00ff88; font-weight: bold; text-transform: uppercase; }
-        button { background: #222; border: 1px solid #444; color: white; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+        #sidebar { width: 260px; background: #050505; border-left: 1px solid #333; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .cam-box { width: 100%; border-radius: 8px; background: #222; overflow: hidden; border: 1px solid #444; }
+        video.cam { width: 100%; transform: scaleX(-1); display: block; }
+        .tag { font-size: 10px; color: #00ff88; padding: 5px; font-weight: bold; }
+        button { background: #1a1a1a; border: 1px solid #444; color: white; padding: 8px 15px; border-radius: 5px; cursor: pointer; }
         button:hover { border-color: #00ff88; }
     </style>
 </head>
 <body>
     <div id="theater">
         <div id="video-container">
-            <iframe id="main-player" src="" allowfullscreen></iframe>
+            <video id="main-movie" controls crossorigin="anonymous">
+                <source id="movie-src" src="" type="video/mp4">
+            </video>
         </div>
         
         <div class="controls">
-            <div class="row">
-                <button onclick="sendSync()" style="background:#00ff88; color:#000; border:none;">⚡ PUSH SYNC TO FRIENDS</button>
+            <div class="btn-row">
+                <button onclick="syncToLeader()" style="background:#00ff88; color:#000; border:none;">⚡ SYNC TO LEADER</button>
                 <button onclick="toggleCam()">📷 CAM</button>
                 <button onclick="toggleMic()">🎤 MIC</button>
                 <button onclick="window.location.href='/'" style="color:red">EXIT</button>
             </div>
-            <div id="sync-status" style="font-size:10px; text-align:center; color:#666;">Ready to Sync</div>
         </div>
     </div>
 
     <div id="sidebar">
-        <div class="tag">You</div>
-        <video id="my-cam" autoplay muted playsinline></video>
-        <div class="tag">Friends</div>
+        <div class="tag">YOU</div>
+        <div class="cam-box"><video id="my-cam" class="cam" autoplay muted playsinline></video></div>
+        <div class="tag">FRIENDS</div>
         <div id="friend-cams"></div>
     </div>
 
@@ -57,63 +57,67 @@
         const imdb = params.get('imdb');
         const socket = io();
         const peer = new Peer();
+        const movie = document.getElementById('main-movie');
         let myStream;
 
-        // Set movie source
-        document.getElementById('main-player').src = `https://vidsrc.to/embed/movie/${imdb}`;
+        // Force a direct stream link (Replace with your preferred direct provider if needed)
+        document.getElementById('movie-src').src = `https://vidsrc.me/embed/movie?imdb=${imdb}`;
+        movie.load();
 
-        // 1. CAMERA LOGIC (The part that worked)
-        async function initMedia() {
+        async function startCams() {
             try {
                 myStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 document.getElementById('my-cam').srcObject = myStream;
                 peer.on('call', call => {
                     call.answer(myStream);
-                    call.on('stream', s => addRemoteStream(s, call.peer));
+                    call.on('stream', s => addFriend(s, call.peer));
                 });
-            } catch (e) { alert("Please allow Camera/Mic access"); }
+            } catch (e) { console.log("Cam error"); }
         }
 
-        function addRemoteStream(stream, id) {
+        function addFriend(stream, id) {
             if (document.getElementById(id)) return;
+            const box = document.createElement('div');
+            box.className = 'cam-box';
+            box.id = id;
             const v = document.createElement('video');
-            v.id = id; v.srcObject = stream; v.autoplay = true; v.playsinline = true;
-            document.getElementById('friend-cams').append(v);
+            v.className = 'cam';
+            v.srcObject = stream;
+            v.autoplay = true;
+            v.playsinline = true;
+            box.appendChild(v);
+            document.getElementById('friend-cams').appendChild(box);
         }
 
         peer.on('open', id => socket.emit('join-room', roomId, id));
         socket.on('user-connected', userId => {
             setTimeout(() => {
                 const call = peer.call(userId, myStream);
-                call.on('stream', s => addRemoteStream(s, userId));
+                call.on('stream', s => addFriend(s, userId));
             }, 1000);
         });
 
-        // 2. SYNC LOGIC
-        // Since we can't "read" the time inside an iframe easily, 
-        // the leader manually pushes a sync point.
-        function sendSync() {
-            // This is a manual trigger because automated iframe-reading is blocked by Chrome/Brave
-            socket.emit('sync-event', { roomId, type: 'manual-sync' });
-            document.getElementById('sync-status').innerText = "Sync signal sent!";
-            setTimeout(() => document.getElementById('sync-status').innerText = "", 2000);
+        // Sync Logic
+        function syncToLeader() {
+            socket.emit('sync-event', { roomId, type: 'request-time' });
         }
 
+        movie.onplay = () => socket.emit('sync-event', { roomId, type: 'play', time: movie.currentTime });
+        movie.onpause = () => socket.emit('sync-event', { roomId, type: 'pause', time: movie.currentTime });
+
         socket.on('apply-sync', (data) => {
-            if (data.type === 'manual-sync') {
-                // When the leader clicks PUSH, everyone else's player reloads to catch up
-                const player = document.getElementById('main-player');
-                const currentSrc = player.src;
-                player.src = ""; 
-                player.src = currentSrc;
-                document.getElementById('sync-status').innerText = "Syncing with leader...";
+            if (data.type === 'request-time') {
+                socket.emit('sync-event', { roomId, type: 'leader-time', time: movie.currentTime });
+            } else if (data.type === 'leader-time' || Math.abs(movie.currentTime - data.time) > 2) {
+                movie.currentTime = data.time;
+                if (data.type === 'play') movie.play();
             }
         });
 
         function toggleCam() { myStream.getVideoTracks()[0].enabled = !myStream.getVideoTracks()[0].enabled; }
         function toggleMic() { myStream.getAudioTracks()[0].enabled = !myStream.getAudioTracks()[0].enabled; }
 
-        initMedia();
+        startCams();
     </script>
 </body>
 </html>
