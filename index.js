@@ -1,45 +1,38 @@
 const express = require('express');
 const axios = require('axios');
-const cors = require('cors');
 const http = require('http'); 
 const { Server } = require('socket.io');
 const path = require('path');
-const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
-app.use(cors());
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server);
 
 app.use(express.static(path.join(__dirname)));
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-app.get('/player', (req, res) => res.sendFile(path.join(__dirname, 'player.html')));
 
+// API to get trending movies
 app.get('/trending', async (req, res) => {
     try {
         const response = await axios.get(`https://api.themoviedb.org/3/trending/movie/week?api_key=d800759469a13ad76fd7f48830a046a8`);
         res.json(response.data.results);
-    } catch (e) { res.status(500).send("TMDB Error"); }
+    } catch (e) { res.status(500).json([]); }
 });
 
 io.on('connection', (socket) => {
+    // Join a room based on the ID generated in the lobby
     socket.on('join-room', (roomId) => socket.join(roomId));
 
-    // When leader picks a movie, everyone moves
+    // When the leader picks a movie, redirect everyone in that room
     socket.on('play-movie', (data) => {
-        io.to(data.roomId).emit('start-stream', data);
+        io.to(data.roomId).emit('redirect-to-player', data);
     });
 
-    // CRITICAL SYNC: Broadcasts time/state to everyone except sender
-    socket.on('sync-action', (data) => {
+    // Handle Play/Pause/Seek synchronization
+    socket.on('sync-event', (data) => {
+        // Broadcast the time and state to everyone EXCEPT the sender
         socket.to(data.roomId).emit('apply-sync', data);
-    });
-
-    // WebRTC Signaling
-    socket.on('video-signal', (data) => {
-        socket.to(data.roomId).emit('video-signal-receive', data);
     });
 });
 
 const PORT = process.env.PORT || 5001;
-server.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server on ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT}`));

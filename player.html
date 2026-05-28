@@ -1,103 +1,53 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Sync Party - Locked</title>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/simple-peer/9.11.1/simplepeer.min.js"></script>
+    <title>Party Theater</title>
     <style>
-        body { background: #000; margin: 0; color: white; font-family: sans-serif; overflow: hidden; }
-        #video-container { width: 100vw; height: 85vh; background: #000; }
-        .webtor-player { width: 100%; height: 100%; }
-        .footer { height: 15vh; background: #111; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-top: 2px solid #00ff88; }
-        #remote-video { position: absolute; top: 10px; right: 10px; width: 200px; border: 2px solid #00ff88; border-radius: 10px; }
-        #local-video { position: absolute; top: 10px; right: 220px; width: 100px; border: 1px solid #555; }
-        .btn { background: #00ff88; color: #000; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        body { margin:0; background:#000; color:#fff; font-family:sans-serif; overflow:hidden; }
+        #video-container { width:100vw; height:100vh; }
+        .info-bar { position:fixed; bottom:0; width:100%; background:rgba(0,0,0,0.7); padding:10px; display:flex; justify-content:space-between; z-index:100; }
     </style>
 </head>
 <body>
-
-    <div id="video-container">
-        <div id="player" class="webtor-player"></div>
-        <video id="remote-video" autoplay playsinline></video>
-        <video id="local-video" autoplay playsinline muted></video>
+    <div id="video-container"></div>
+    <div class="info-bar">
+        <span id="movie-title">Loading...</span>
+        <button onclick="window.location.href='/'">Exit Theater</button>
     </div>
 
-    <div class="footer">
-        <div>
-            <h2 id="movie-title">Loading...</h2>
-            <p id="room-id"></p>
-        </div>
-        <div>
-            <button class="btn" onclick="startCall()">🎥 Start Video Call</button>
-            <a href="/" class="btn" style="background:#ff4444; color:white;">Exit</a>
-        </div>
-    </div>
-
-    <script src="https://controls.webtor.io/v1/index.js" charset="utf-8"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://controls.webtor.io/v1/index.js"></script>
     <script>
         const socket = io();
         const params = new URLSearchParams(window.location.search);
-        const imdbId = params.get('imdb');
         const roomId = params.get('room');
-        const infoHash = params.get('hash');
-        
-        document.getElementById('movie-title').innerText = params.get('title');
-        document.getElementById('room-id').innerText = "Room: " + roomId;
+        const hash = params.get('hash');
+        document.getElementById('movie-title').innerText = "Watching: " + params.get('title');
 
         if (roomId) socket.emit('join-room', roomId);
 
-        // --- THE SYNC PLAYER ---
         window.webtor = window.webtor || [];
         window.webtor.push({
-            id: 'player',
-            hash: infoHash,
+            id: 'video-container',
+            hash: hash,
             onReady: (player) => {
-                console.log('Player is ready');
-                
-                // When I play/pause, tell the other person
+                // LEADER: When you play/pause, tell the room
                 player.on('play', () => {
-                    socket.emit('sync-action', { roomId, type: 'play', time: player.getCurrentTime() });
+                    socket.emit('sync-event', { roomId, type: 'play', time: player.getCurrentTime() });
                 });
 
                 player.on('pause', () => {
-                    socket.emit('sync-action', { roomId, type: 'pause', time: player.getCurrentTime() });
+                    socket.emit('sync-event', { roomId, type: 'pause', time: player.getCurrentTime() });
                 });
 
-                // Listen for sync from the other person
+                // FOLLOWER: When a sync event comes from someone else, apply it
                 socket.on('apply-sync', (data) => {
-                    if (Math.abs(player.getCurrentTime() - data.time) > 2) {
+                    const diff = Math.abs(player.getCurrentTime() - data.time);
+                    if (diff > 1.5) { // Only seek if out of sync by more than 1.5s
                         player.seek(data.time);
                     }
-                    if (data.type === 'play') player.play();
-                    if (data.type === 'pause') player.pause();
+                    data.type === 'play' ? player.play() : player.pause();
                 });
-            },
-        });
-
-        // --- VIDEO CALL LOGIC ---
-        let localStream;
-        let peer;
-
-        async function startCall() {
-            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            document.getElementById('local-video').srcObject = localStream;
-            peer = new SimplePeer({ initiator: true, trickle: false, stream: localStream });
-            peer.on('signal', data => socket.emit('video-signal', { signal: data, roomId }));
-            peer.on('stream', stream => document.getElementById('remote-video').srcObject = stream);
-        }
-
-        socket.on('video-signal-receive', data => {
-            if (!peer) {
-                navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-                    localStream = stream;
-                    document.getElementById('local-video').srcObject = stream;
-                    peer = new SimplePeer({ initiator: false, trickle: false, stream: localStream });
-                    peer.on('signal', signal => socket.emit('video-signal', { signal, roomId }));
-                    peer.on('stream', st => document.getElementById('remote-video').srcObject = st);
-                    peer.signal(data.signal);
-                });
-            } else {
-                peer.signal(data.signal);
             }
         });
     </script>
