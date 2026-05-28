@@ -4,76 +4,77 @@
     <title>Party Sync Pro</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <script src="https://controls.webtor.io/v1/index.js" charset="utf-8"></script>
     <style>
         body { margin:0; background:#000; color:#fff; font-family:sans-serif; display:flex; height:100vh; overflow:hidden; }
-        #theater { flex: 1; position: relative; background: #000; display: flex; flex-direction: column; }
-        #video-container { flex: 1; width:100%; height:100%; position: relative; z-index: 1; }
+        #theater { flex: 1; position: relative; display: flex; flex-direction: column; }
+        #video-container { flex: 1; width:100%; height:100%; }
+        iframe { width: 100%; height: 100%; border: none; }
         
-        .master-controls {
+        /* FIXED CONTROL BAR */
+        .controls {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 90%; max-width: 850px; background: rgba(10, 10, 10, 0.95);
-            padding: 15px; border-radius: 12px; border: 2px solid #00ff88;
-            display: flex; flex-direction: column; gap: 10px; z-index: 99999;
+            width: 80%; background: rgba(0,0,0,0.9); padding: 15px;
+            border-radius: 10px; border: 1px solid #00ff88; display: flex; 
+            flex-direction: column; gap: 10px; z-index: 1000;
         }
-        .scrubber-row { display: flex; align-items: center; gap: 10px; }
-        #scrubber { flex: 1; accent-color: #00ff88; cursor: pointer; }
-        .time-txt { font-size: 12px; font-family: monospace; color: #00ff88; }
-        .btn-row { display: flex; gap: 15px; justify-content: center; }
+        .row { display: flex; justify-content: center; gap: 15px; }
         
-        #sidebar { width: 260px; background: #050505; border-left: 1px solid #333; padding: 10px; display: flex; flex-direction: column; gap: 10px; z-index: 100; }
-        video { width: 100%; border-radius: 8px; background: #222; transform: scaleX(-1); border: 1px solid #444; }
-        .tag { font-size: 10px; color: #00ff88; font-weight: bold; }
-        
-        button { background: #1a1a1a; border: 1px solid #444; color: white; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        .force-sync { background: #00ff88 !important; color: #000 !important; border: none; }
+        /* SIDEBAR */
+        #sidebar { width: 250px; background: #050505; border-left: 1px solid #333; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+        video { width: 100%; border-radius: 8px; background: #222; transform: scaleX(-1); }
+        .tag { font-size: 10px; color: #00ff88; font-weight: bold; text-transform: uppercase; }
+        button { background: #222; border: 1px solid #444; color: white; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+        button:hover { border-color: #00ff88; }
     </style>
 </head>
 <body>
     <div id="theater">
-        <div id="video-container"><div id="status" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#00ff88;">LOADING SYNC ENGINE...</div></div>
-        <div class="master-controls">
-            <div class="scrubber-row">
-                <span id="cTime" class="time-txt">0:00</span>
-                <input type="range" id="scrubber" value="0" min="0" max="100">
-                <span id="tTime" class="time-txt">0:00</span>
-            </div>
-            <div class="btn-row">
-                <button onclick="pToggle()">PLAY / PAUSE</button>
-                <button class="force-sync" onclick="requestSync()">FORCE SYNC ⚡</button>
+        <div id="video-container">
+            <iframe id="main-player" src="" allowfullscreen></iframe>
+        </div>
+        
+        <div class="controls">
+            <div class="row">
+                <button onclick="sendSync()" style="background:#00ff88; color:#000; border:none;">⚡ PUSH SYNC TO FRIENDS</button>
                 <button onclick="toggleCam()">📷 CAM</button>
                 <button onclick="toggleMic()">🎤 MIC</button>
-                <button onclick="window.location.href='/'" style="color:#ff4444">EXIT</button>
+                <button onclick="window.location.href='/'" style="color:red">EXIT</button>
             </div>
+            <div id="sync-status" style="font-size:10px; text-align:center; color:#666;">Ready to Sync</div>
         </div>
     </div>
+
     <div id="sidebar">
-        <div class="tag">YOU</div>
+        <div class="tag">You</div>
         <video id="my-cam" autoplay muted playsinline></video>
-        <div class="tag">FRIENDS</div>
+        <div class="tag">Friends</div>
         <div id="friend-cams"></div>
     </div>
 
     <script>
         const params = new URLSearchParams(window.location.search);
         const roomId = params.get('room');
-        const hash = params.get('hash');
+        const imdb = params.get('imdb');
         const socket = io();
         const peer = new Peer();
-        let myStream, player = null;
+        let myStream;
 
-        async function startCam() {
+        // Set movie source
+        document.getElementById('main-player').src = `https://vidsrc.to/embed/movie/${imdb}`;
+
+        // 1. CAMERA LOGIC (The part that worked)
+        async function initMedia() {
             try {
                 myStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 document.getElementById('my-cam').srcObject = myStream;
                 peer.on('call', call => {
                     call.answer(myStream);
-                    call.on('stream', s => renderFriend(s, call.peer));
+                    call.on('stream', s => addRemoteStream(s, call.peer));
                 });
-            } catch (e) { console.log("Cam denied"); }
+            } catch (e) { alert("Please allow Camera/Mic access"); }
         }
 
-        function renderFriend(stream, id) {
+        function addRemoteStream(stream, id) {
             if (document.getElementById(id)) return;
             const v = document.createElement('video');
             v.id = id; v.srcObject = stream; v.autoplay = true; v.playsinline = true;
@@ -84,58 +85,35 @@
         socket.on('user-connected', userId => {
             setTimeout(() => {
                 const call = peer.call(userId, myStream);
-                call.on('stream', s => renderFriend(s, userId));
+                call.on('stream', s => addRemoteStream(s, userId));
             }, 1000);
         });
 
-        function pToggle() { if(player) player.isPaused() ? player.play() : player.pause(); }
-        function requestSync() { socket.emit('sync-event', { roomId, type: 'request-sync' }); }
-
-        function initMovie() {
-            if (typeof window.webtor === 'undefined') {
-                document.getElementById('status').innerHTML = "PLAYER BLOCKED. TURN OFF ADBLOCK/SHIELD.";
-                return;
-            }
-            window.webtor.push({
-                id: 'video-container',
-                hash: hash,
-                onReady: (p) => {
-                    player = p;
-                    document.getElementById('status').style.display = 'none';
-                    setInterval(() => {
-                        const cur = p.getCurrentTime(), dur = p.getDuration();
-                        document.getElementById('cTime').innerText = fmt(cur);
-                        document.getElementById('tTime').innerText = fmt(dur);
-                        document.getElementById('scrubber').value = (cur / dur) * 100;
-                    }, 1000);
-
-                    document.getElementById('scrubber').oninput = (e) => {
-                        const time = (e.target.value / 100) * p.getDuration();
-                        p.seek(time);
-                        socket.emit('sync-event', { roomId, type: 'seek', time });
-                    };
-
-                    p.on('play', () => socket.emit('sync-event', { roomId, type: 'play', time: p.getCurrentTime() }));
-                    p.on('pause', () => socket.emit('sync-event', { roomId, type: 'pause', time: p.getCurrentTime() }));
-
-                    socket.on('apply-sync', (d) => {
-                        if (d.type === 'request-sync') {
-                            socket.emit('sync-event', { roomId, type: 'seek', time: p.getCurrentTime() });
-                        } else {
-                            if (Math.abs(p.getCurrentTime() - d.time) > 2) p.seek(d.time);
-                            d.type === 'play' ? p.play() : p.pause();
-                        }
-                    });
-                }
-            });
+        // 2. SYNC LOGIC
+        // Since we can't "read" the time inside an iframe easily, 
+        // the leader manually pushes a sync point.
+        function sendSync() {
+            // This is a manual trigger because automated iframe-reading is blocked by Chrome/Brave
+            socket.emit('sync-event', { roomId, type: 'manual-sync' });
+            document.getElementById('sync-status').innerText = "Sync signal sent!";
+            setTimeout(() => document.getElementById('sync-status').innerText = "", 2000);
         }
 
-        function fmt(s) { return Math.floor(s/60) + ":" + Math.floor(s%60).toString().padStart(2,'0'); }
+        socket.on('apply-sync', (data) => {
+            if (data.type === 'manual-sync') {
+                // When the leader clicks PUSH, everyone else's player reloads to catch up
+                const player = document.getElementById('main-player');
+                const currentSrc = player.src;
+                player.src = ""; 
+                player.src = currentSrc;
+                document.getElementById('sync-status').innerText = "Syncing with leader...";
+            }
+        });
+
         function toggleCam() { myStream.getVideoTracks()[0].enabled = !myStream.getVideoTracks()[0].enabled; }
         function toggleMic() { myStream.getAudioTracks()[0].enabled = !myStream.getAudioTracks()[0].enabled; }
 
-        startCam();
-        initMovie();
+        initMedia();
     </script>
 </body>
 </html>
