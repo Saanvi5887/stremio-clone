@@ -1,50 +1,97 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Theater</title>
+    <title>Party & Call</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://controls.webtor.io/v1/index.js" charset="utf-8"></script>
     <style>
-        body { margin:0; background:#000; color:#fff; font-family:sans-serif; overflow:hidden; }
-        #container { width:100vw; height:100vh; background:#000; display:flex; align-items:center; justify-content:center; }
-        iframe { width:100%; height:100%; border:none; }
-        .bar { position:fixed; bottom:0; width:100%; background:rgba(0,0,0,0.8); padding:15px; display:flex; justify-content:space-between; z-index:100; border-top:1px solid #00ff88; }
+        body { margin:0; background:#000; color:#fff; font-family:sans-serif; display: flex; overflow:hidden; }
+        #main-theater { flex-grow: 1; position: relative; height: 100vh; }
+        #video-container { width: 100%; height: 100%; }
+        
+        /* Video Call Sidebar */
+        #call-sidebar { width: 250px; background: #111; border-left: 1px solid #00ff88; display: flex; flex-direction: column; padding: 10px; gap: 10px; overflow-y: auto; }
+        video { width: 100%; border-radius: 10px; border: 1px solid #333; background: #000; transform: scaleX(-1); }
+        .user-label { font-size: 10px; color: #00ff88; margin-top: -5px; margin-bottom: 5px; }
+
+        .bar { position:fixed; bottom:0; left:0; width: calc(100% - 250px); background:rgba(0,0,0,0.8); padding:15px; display:flex; justify-content:space-between; border-top: 1px solid #00ff88; z-index:100; }
     </style>
 </head>
 <body>
-    <div id="container">
-        <div id="status">Starting Engine...</div>
-    </div>
-    <div class="bar">
-        <span id="movie-title"></span>
-        <button onclick="window.location.href='/'">Exit</button>
+    <div id="main-theater">
+        <div id="video-container"></div>
+        <div class="bar">
+            <span id="m-title">Loading Movie...</span>
+            <button onclick="window.location.href='/'" style="background:red; color:white; border:none; cursor:pointer; padding:5px 10px; border-radius:5px;">Exit</button>
+        </div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="https://controls.webtor.io/v1/index.js" onerror="useFallback()"></script>
+    <div id="call-sidebar">
+        <video id="my-video" autoplay muted playsinline></video>
+        <div class="user-label">YOU</div>
+        <div id="remote-videos"></div>
+    </div>
 
     <script>
-        const socket = io();
         const params = new URLSearchParams(window.location.search);
         const roomId = params.get('room');
         const hash = params.get('hash');
-        const imdb = params.get('imdb');
-        document.getElementById('movie-title').innerText = params.get('title');
+        document.getElementById('m-title').innerText = params.get('title');
 
-        if(roomId) socket.emit('join-room', roomId);
+        const socket = io();
+        const peer = new Peer(); // Create unique ID for video call
+        const myVideo = document.getElementById('my-video');
+        const remoteContainer = document.getElementById('remote-videos');
+        const peers = {};
 
-        function useFallback() {
-            console.log("WebTor Blocked. Using Iframe Fallback.");
-            const container = document.getElementById('container');
-            container.innerHTML = `<iframe src="https://vidsrc.me/embed/movie?imdb=${imdb}" allowfullscreen></iframe>`;
+        // 1. Setup Camera
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+            myVideo.srcObject = stream;
+
+            // Answer incoming calls
+            peer.on('call', call => {
+                call.answer(stream);
+                const video = document.createElement('video');
+                call.on('stream', userStream => addRemoteVideo(video, userStream, call.peer));
+            });
+
+            socket.on('user-connected', userId => {
+                const call = peer.call(userId, stream);
+                const video = document.createElement('video');
+                call.on('stream', userStream => addRemoteVideo(video, userStream, userId));
+                peers[userId] = call;
+            });
+        });
+
+        function addRemoteVideo(video, stream, id) {
+            video.srcObject = stream;
+            video.autoplay = true;
+            video.id = `vid-${id}`;
+            if (!document.getElementById(`vid-${id}`)) {
+                remoteContainer.append(video);
+                const label = document.createElement('div');
+                label.className = 'user-label';
+                label.innerText = "FRIEND";
+                remoteContainer.append(label);
+            }
         }
 
-        function init() {
-            if (typeof window.webtor === 'undefined') {
-                useFallback();
-                return;
-            }
+        peer.on('open', id => {
+            socket.emit('join-room', roomId, id);
+        });
 
+        socket.on('user-disconnected', userId => {
+            if (peers[userId]) peers[userId].close();
+            const vid = document.getElementById(`vid-${userId}`);
+            if (vid) vid.remove();
+        });
+
+        // 2. Setup Movie Engine
+        function startMovie() {
+            if (typeof window.webtor === 'undefined') { setTimeout(startMovie, 1000); return; }
             window.webtor.push({
-                id: 'container',
+                id: 'video-container',
                 hash: hash,
                 onReady: (p) => {
                     p.on('play', () => socket.emit('sync-event', { roomId, type: 'play', time: p.getCurrentTime() }));
@@ -53,17 +100,10 @@
                         if (Math.abs(p.getCurrentTime() - d.time) > 2) p.seek(d.time);
                         d.type === 'play' ? p.play() : p.pause();
                     });
-                },
-                onError: () => useFallback()
+                }
             });
         }
-
-        // Final safety check
-        setTimeout(() => {
-            if (document.getElementById('status')) useFallback();
-        }, 8000);
-
-        init();
+        startMovie();
     </script>
 </body>
 </html>
