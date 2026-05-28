@@ -1,63 +1,84 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Stremio Party - Player</title>
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="https://controls.webtor.io/v1/index.js" charset="utf-8"></script>
+    <meta charset="UTF-8">
+    <title>Party Theater</title>
     <style>
-        body { margin:0; background:#000; color:#fff; font-family: sans-serif; overflow: hidden; }
-        #player { width:100vw; height:100vh; background: #000; }
-        .overlay { position: fixed; bottom: 20px; left: 20px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px; z-index: 999; border: 1px solid #00ff88; }
+        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; overflow: hidden; }
+        #video-container { width: 100vw; height: 100vh; background: #000; }
+        .info-bar { position: fixed; bottom: 0; width: 100%; background: rgba(0,0,0,0.8); padding: 15px; display: flex; justify-content: space-between; align-items: center; z-index: 1000; border-top: 1px solid #00ff88; }
+        #log-status { font-size: 12px; color: #00ff88; margin-left: 20px; font-family: monospace; }
+        button { background: #ff4444; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div id="player"></div>
-    <div class="overlay">
-        <span id="m-title" style="font-weight:bold; color:#00ff88;"></span> | 
-        <button onclick="window.location.href='/'" style="background:#ff4444; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">Exit</button>
+
+    <div id="video-container"></div>
+
+    <div class="info-bar">
+        <div>
+            <span id="movie-title" style="font-weight: bold;">Loading Movie...</span>
+            <span id="log-status">Initializing Engine...</span>
+        </div>
+        <button onclick="window.location.href='/'">Exit Theater</button>
     </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://controls.webtor.io/v1/index.js" charset="utf-8"></script>
 
     <script>
         const socket = io();
         const params = new URLSearchParams(window.location.search);
         const roomId = params.get('room');
         const hash = params.get('hash');
-        document.getElementById('m-title').innerText = params.get('title');
+        const title = params.get('title');
 
-        if(roomId) socket.emit('join-room', roomId);
+        document.getElementById('movie-title').innerText = "Watching: " + title;
+        const statusEl = document.getElementById('log-status');
 
-        // This function ensures the player initializes correctly
-        function initPlayer() {
+        if (roomId) socket.emit('join-room', roomId);
+
+        function startWebTor() {
+            // Check if WebTor SDK is actually loaded
             if (typeof window.webtor === 'undefined') {
-                setTimeout(initPlayer, 500); // Retry if script isn't ready
+                statusEl.innerText = "Waiting for SDK...";
+                setTimeout(startWebTor, 1000);
                 return;
             }
 
+            statusEl.innerText = "Connecting to Peers...";
+            
             window.webtor.push({
-                id: 'player',
+                id: 'video-container',
                 hash: hash,
-                onReady: (p) => {
-                    console.log('Video Engine Started');
-                    
-                    p.on('play', () => {
-                        socket.emit('sync-event', { roomId, type: 'play', time: p.getCurrentTime() });
+                onReady: (player) => {
+                    statusEl.innerText = "STREAM ACTIVE";
+                    console.log('Player Ready');
+
+                    // Sync logic
+                    player.on('play', () => {
+                        socket.emit('sync-event', { roomId, type: 'play', time: player.getCurrentTime() });
                     });
 
-                    p.on('pause', () => {
-                        socket.emit('sync-event', { roomId, type: 'pause', time: p.getCurrentTime() });
+                    player.on('pause', () => {
+                        socket.emit('sync-event', { roomId, type: 'pause', time: player.getCurrentTime() });
                     });
 
-                    socket.on('apply-sync', (d) => {
-                        const diff = Math.abs(p.getCurrentTime() - d.time);
-                        if (diff > 2) p.seek(d.time);
-                        d.type === 'play' ? p.play() : p.pause();
+                    socket.on('apply-sync', (data) => {
+                        const diff = Math.abs(player.getCurrentTime() - data.time);
+                        if (diff > 2) player.seek(data.time);
+                        data.type === 'play' ? player.play() : player.pause();
                     });
+                },
+                onError: (e) => {
+                    statusEl.innerText = "FAILED: Peer connection lost.";
+                    statusEl.style.color = "red";
                 }
             });
         }
 
-        // Run on load
-        window.addEventListener('DOMContentLoaded', initPlayer);
+        // Initialize
+        startWebTor();
     </script>
 </body>
 </html>
