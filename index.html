@@ -203,42 +203,57 @@
         }
 
         async function fetchStreams(tmdbId, title) {
-            if (!currentRoom) return alert("You must Join or Create a room first!");
-            
-            document.getElementById('stream-modal').style.display = 'flex';
-            const list = document.getElementById('stream-list');
-            list.innerHTML = "Searching Torrentio...";
+    if (!currentRoom) return alert("You must Join or Create a room first!");
+    
+    document.getElementById('stream-modal').style.display = 'flex';
+    const list = document.getElementById('stream-list');
+    list.innerHTML = "Searching Torrentio...";
 
-            try {
-                const tmdbRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=d800759469a13ad76fd7f48830a046a8`);
-                const data = await tmdbRes.json();
-                const imdbId = data.imdb_id;
+    try {
+        // 1. Get detailed movie info to find the IMDB ID
+        const tmdbRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=d800759469a13ad76fd7f48830a046a8`);
+        const data = await tmdbRes.json();
+        
+        const imdbId = data.imdb_id;
 
-                const streamRes = await fetch(`/streams/${imdbId}`);
-                const streams = await streamRes.json();
-                
-                list.innerHTML = '';
-                if(streams.length === 0) {
-                    list.innerHTML = "No streams found for this movie.";
-                    return;
-                }
-
-                streams.slice(0, 5).forEach(s => {
-                    const item = document.createElement('div');
-                    item.className = 'stream-item';
-                    item.innerHTML = `<strong>${s.name}</strong><br><small>${s.title.split('\n')[0]}</small>`;
-                    item.onclick = () => {
-                        socket.emit('play-movie', { 
-                            roomId: currentRoom, 
-                            infoHash: s.infoHash, 
-                            title: title,
-                            imdb: imdbId 
-                        });
-                    };
-                    list.appendChild(item);
-                });
-            } catch (e) { list.innerHTML = "Error fetching streams."; }
+        // Safety Check: If no IMDB ID, we can't search Torrentio
+        if (!imdbId) {
+            list.innerHTML = "❌ No IMDB ID found for this movie. Try another one!";
+            return;
         }
+
+        // 2. Fetch from YOUR server's proxy
+        const streamRes = await fetch(`/streams/${imdbId}`);
+        
+        if (!streamRes.ok) throw new Error("Server responded with error");
+        
+        const streams = await streamRes.json();
+        
+        list.innerHTML = '';
+        if (!streams || streams.length === 0) {
+            list.innerHTML = "No streams found. Torrentio might be down or this movie is too new.";
+            return;
+        }
+
+        streams.slice(0, 5).forEach(s => {
+            const item = document.createElement('div');
+            item.className = 'stream-item';
+            item.innerHTML = `<strong>${s.name}</strong><br><small>${s.title.split('\n')[0]}</small>`;
+            item.onclick = () => {
+                socket.emit('play-movie', { 
+                    roomId: currentRoom, 
+                    infoHash: s.infoHash, 
+                    title: title,
+                    imdb: imdbId 
+                });
+            };
+            list.appendChild(item);
+        });
+    } catch (e) { 
+        console.error(e);
+        list.innerHTML = "⚠️ Error fetching streams. Try refreshing the page or picking a different movie."; 
+    }
+}
 
         socket.on('start-stream', (data) => {
             // Send everyone to the player page with the same room ID
