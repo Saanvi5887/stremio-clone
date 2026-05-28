@@ -1,52 +1,55 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Party Theater</title>
+    <title>Stremio Party - Player</title>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { margin:0; background:#000; color:#fff; font-family:sans-serif; overflow:hidden; }
-        #video-container { width:100vw; height:100vh; }
-        .info-bar { position:fixed; bottom:0; width:100%; background:rgba(0,0,0,0.7); padding:10px; display:flex; justify-content:space-between; z-index:100; }
+        body { margin:0; background:#000; color:#fff; font-family: sans-serif; overflow: hidden; }
+        #player { width:100vw; height:100vh; }
+        .overlay { position: fixed; bottom: 20px; left: 20px; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 10px; z-index: 99; border: 1px solid #00ff88; }
     </style>
 </head>
 <body>
-    <div id="video-container"></div>
-    <div class="info-bar">
-        <span id="movie-title">Loading...</span>
-        <button onclick="window.location.href='/'">Exit Theater</button>
+    <div id="player"></div>
+    <div class="overlay">
+        <span id="m-title">Loading movie...</span> | 
+        <button onclick="window.location.href='/'" style="background:red; color:white; border:none; cursor:pointer;">Exit</button>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="https://controls.webtor.io/v1/index.js"></script>
+    <script src="https://controls.webtor.io/v1/index.js" charset="utf-8" async></script>
     <script>
         const socket = io();
         const params = new URLSearchParams(window.location.search);
         const roomId = params.get('room');
         const hash = params.get('hash');
-        document.getElementById('movie-title').innerText = "Watching: " + params.get('title');
+        document.getElementById('m-title').innerText = params.get('title');
 
-        if (roomId) socket.emit('join-room', roomId);
+        if(roomId) socket.emit('join-room', roomId);
 
         window.webtor = window.webtor || [];
         window.webtor.push({
-            id: 'video-container',
+            id: 'player',
             hash: hash,
-            onReady: (player) => {
-                // LEADER: When you play/pause, tell the room
-                player.on('play', () => {
-                    socket.emit('sync-event', { roomId, type: 'play', time: player.getCurrentTime() });
+            onReady: (p) => {
+                console.log('Player is ready');
+                
+                // When you play, tell everyone else
+                p.on('play', () => {
+                    socket.emit('sync-action', { roomId, type: 'play', time: p.getCurrentTime() });
                 });
 
-                player.on('pause', () => {
-                    socket.emit('sync-event', { roomId, type: 'pause', time: player.getCurrentTime() });
+                // When you pause, tell everyone else
+                p.on('pause', () => {
+                    socket.emit('sync-action', { roomId, type: 'pause', time: p.getCurrentTime() });
                 });
 
-                // FOLLOWER: When a sync event comes from someone else, apply it
-                socket.on('apply-sync', (data) => {
-                    const diff = Math.abs(player.getCurrentTime() - data.time);
-                    if (diff > 1.5) { // Only seek if out of sync by more than 1.5s
-                        player.seek(data.time);
+                // Listen for sync from others
+                socket.on('apply-sync', (d) => {
+                    if (Math.abs(p.getCurrentTime() - d.time) > 2) {
+                        p.seek(d.time);
                     }
-                    data.type === 'play' ? player.play() : player.pause();
+                    if (d.type === 'play') p.play();
+                    else p.pause();
                 });
             }
         });
