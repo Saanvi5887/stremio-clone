@@ -4,66 +4,59 @@
     <title>Party Sync Pro</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <script src="https://controls.webtor.io/v1/index.js" charset="utf-8"></script>
     <style>
         body { margin:0; background:#000; color:#fff; font-family:sans-serif; display:flex; height:100vh; overflow:hidden; }
         #theater { flex: 1; position: relative; background: #000; display: flex; flex-direction: column; }
         #video-container { flex: 1; width:100%; height:100%; }
+        iframe { width: 100%; height: 100%; border: none; }
         
-        /* Master Control Bar */
         .master-bar {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 90%; max-width: 900px; background: rgba(10, 10, 10, 0.95);
+            width: 90%; max-width: 800px; background: rgba(10, 10, 10, 0.95);
             padding: 15px; border-radius: 15px; border: 1px solid #00ff88;
             display: flex; flex-direction: column; gap: 10px; z-index: 10000;
         }
-        .progress-row { display: flex; align-items: center; gap: 10px; }
-        input[type=range] { flex: 1; accent-color: #00ff88; cursor: pointer; }
-        .btn-row { display: flex; gap: 20px; align-items: center; justify-content: center; }
+        .btn-row { display: flex; gap: 15px; justify-content: center; }
         
-        /* Sidebar */
         #sidebar { width: 250px; background: #050505; border-left: 1px solid #333; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
         video { width: 100%; border-radius: 8px; background: #222; transform: scaleX(-1); }
-        .tag { font-size: 10px; color: #00ff88; margin-bottom: 5px; }
-        button { background: #222; border: 1px solid #444; color: white; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button { background: #222; border: 1px solid #444; color: white; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 12px; }
         button:hover { border-color: #00ff88; }
     </style>
 </head>
 <body>
     <div id="theater">
-        <div id="video-container"></div>
+        <div id="video-container">
+            <iframe id="movie-player" src="" allowfullscreen></iframe>
+        </div>
         
         <div class="master-bar">
-            <div class="progress-row">
-                <span id="cur-time">0:00</span>
-                <input type="range" id="seek-bar" value="0" min="0" max="100">
-                <span id="tot-time">0:00</span>
-            </div>
             <div class="btn-row">
-                <button onclick="playPause()" style="color:#00ff88">PLAY / PAUSE</button>
-                <button onclick="toggleCam()">📷 CAM</button>
-                <button onclick="toggleMic()">🎤 MIC</button>
-                <button onclick="window.location.href='/'" style="color:red">EXIT</button>
+                <button onclick="toggleCam()">📷 TOGGLE CAM</button>
+                <button onclick="toggleMic()">🎤 TOGGLE MIC</button>
+                <button onclick="window.location.href='/'" style="color:red">EXIT PARTY</button>
             </div>
         </div>
     </div>
 
     <div id="sidebar">
-        <div class="tag">YOU</div>
+        <div style="font-size: 10px; color:#00ff88">YOU</div>
         <video id="my-cam" autoplay muted playsinline></video>
-        <div class="tag">FRIENDS</div>
+        <div style="font-size: 10px; color:#00ff88">FRIENDS</div>
         <div id="friend-cams"></div>
     </div>
 
     <script>
         const params = new URLSearchParams(window.location.search);
         const roomId = params.get('room');
+        const imdb = params.get('imdb');
         const socket = io();
         const peer = new Peer();
         let myStream;
-        let player = null;
 
-        // 1. Setup Camera & Peer Call
+        // Set the movie source immediately
+        document.getElementById('movie-player').src = `https://vidsrc.me/embed/movie?imdb=${imdb}`;
+
         async function startMedia() {
             try {
                 myStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -73,7 +66,7 @@
                     call.answer(myStream);
                     call.on('stream', s => addFriendVideo(s, call.peer));
                 });
-            } catch (e) { alert("Enable Camera/Mic!"); }
+            } catch (e) { console.error("Camera error:", e); }
         }
 
         function addFriendVideo(stream, id) {
@@ -91,69 +84,17 @@
         });
 
         socket.on('user-connected', userId => {
-            const call = peer.call(userId, myStream);
-            call.on('stream', s => addFriendVideo(s, userId));
+            // Give the other peer a second to stabilize
+            setTimeout(() => {
+                const call = peer.call(userId, myStream);
+                call.on('stream', s => addFriendVideo(s, userId));
+            }, 1000);
         });
-
-        socket.on('user-disconnected', userId => {
-            const v = document.getElementById(userId);
-            if (v) v.remove();
-        });
-
-        // 2. Movie Sync Logic
-        function playPause() {
-            if (!player) return;
-            if (player.isPaused()) { player.play(); } else { player.pause(); }
-        }
 
         function toggleCam() { myStream.getVideoTracks()[0].enabled = !myStream.getVideoTracks()[0].enabled; }
         function toggleMic() { myStream.getAudioTracks()[0].enabled = !myStream.getAudioTracks()[0].enabled; }
 
-        function initPlayer() {
-            const hash = params.get('hash');
-            if (typeof window.webtor === 'undefined') {
-                document.getElementById('video-container').innerHTML = `<iframe src="https://vidsrc.me/embed/movie?imdb=${params.get('imdb')}" allowfullscreen></iframe>`;
-                return;
-            }
-            window.webtor.push({
-                id: 'video-container',
-                hash: hash,
-                onReady: (p) => {
-                    player = p;
-                    // Sync UI
-                    setInterval(() => {
-                        const cur = p.getCurrentTime();
-                        const dur = p.getDuration();
-                        document.getElementById('cur-time').innerText = formatTime(cur);
-                        document.getElementById('tot-time').innerText = formatTime(dur);
-                        document.getElementById('seek-bar').value = (cur / dur) * 100;
-                    }, 1000);
-
-                    document.getElementById('seek-bar').oninput = (e) => {
-                        const time = (e.target.value / 100) * p.getDuration();
-                        p.seek(time);
-                        socket.emit('sync-event', { roomId, type: 'seek', time });
-                    };
-
-                    p.on('play', () => socket.emit('sync-event', { roomId, type: 'play', time: p.getCurrentTime() }));
-                    p.on('pause', () => socket.emit('sync-event', { roomId, type: 'pause', time: p.getCurrentTime() }));
-                    
-                    socket.on('apply-sync', (d) => {
-                        if (Math.abs(p.getCurrentTime() - d.time) > 2) p.seek(d.time);
-                        d.type === 'play' ? p.play() : p.pause();
-                    });
-                }
-            });
-        }
-
-        function formatTime(s) {
-            const m = Math.floor(s / 60);
-            const sec = Math.floor(s % 60);
-            return `${m}:${sec.toString().padStart(2, '0')}`;
-        }
-
         startMedia();
-        initPlayer();
     </script>
 </body>
 </html>
