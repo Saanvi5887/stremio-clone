@@ -20,7 +20,6 @@ app.get('/trending', async (req, res) => {
 io.on('connection', (socket) => {
     socket.on('join-room', (roomId, userId) => {
         socket.join(roomId);
-        // Tell others a new video feed is available
         if (userId) socket.to(roomId).emit('user-connected', userId);
 
         socket.on('play-movie', (data) => socket.to(roomId).emit('start-stream', data));

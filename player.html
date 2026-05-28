@@ -1,36 +1,35 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Party & Call</title>
+    <title>Theater & Call</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://controls.webtor.io/v1/index.js" charset="utf-8"></script>
     <style>
         body { margin:0; background:#000; color:#fff; font-family:sans-serif; display:flex; height:100vh; overflow:hidden; }
         #theater { flex: 1; position: relative; background: #000; }
-        #video-container { width:100%; height:100%; }
-        #sidebar { width: 280px; background: #0a0a0a; border-left: 1px solid #00ff88; display: flex; flex-direction: column; padding: 10px; gap: 10px; overflow-y: auto; }
-        video { width: 100%; border-radius: 12px; border: 1px solid #333; background: #000; transform: scaleX(-1); }
-        .label { font-size: 11px; color: #00ff88; margin-bottom: 10px; text-transform: uppercase; }
-        .controls { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.8); padding: 15px; display: flex; justify-content: space-between; border-top: 1px solid #00ff88; }
+        #video-container { width:100%; height:100%; display: flex; align-items: center; justify-content: center; }
+        #sidebar { width: 260px; background: #0a0a0a; border-left: 1px solid #00ff88; display: flex; flex-direction: column; padding: 10px; gap: 10px; }
+        video { width: 100%; border-radius: 10px; border: 1px solid #333; background: #000; transform: scaleX(-1); }
+        .controls { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.8); padding: 15px; display: flex; justify-content: space-between; border-top: 1px solid #00ff88; z-index: 10; }
         iframe { width: 100%; height: 100%; border: none; }
+        .status-msg { color: #00ff88; font-family: monospace; }
     </style>
 </head>
 <body>
     <div id="theater">
         <div id="video-container">
-            <div id="status" style="padding:20px;">Finding Peers...</div>
+            <div id="loading-text" class="status-msg">STABLIZING STREAM...</div>
         </div>
         <div class="controls">
-            <span id="m-title" style="font-weight: bold;">Loading...</span>
+            <span id="m-title">Loading...</span>
             <button onclick="window.location.href='/'" style="background:red; color:white; border:none; padding:5px 15px; border-radius:5px; cursor:pointer;">Exit</button>
         </div>
     </div>
 
     <div id="sidebar">
-        <div class="label">You</div>
+        <div style="font-size: 10px; color:#00ff88;">CAMERAS</div>
         <video id="my-cam" autoplay muted playsinline></video>
-        <div class="label">Friends</div>
         <div id="friend-cams"></div>
     </div>
 
@@ -43,34 +42,35 @@
 
         const socket = io();
         const peer = new Peer();
-        const friendContainer = document.getElementById('friend-cams');
 
-        // 1. Camera Logic
+        // 1. Camera Setup
         navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
             document.getElementById('my-cam').srcObject = stream;
             peer.on('call', call => {
                 call.answer(stream);
                 const vid = document.createElement('video');
-                call.on('stream', userStream => { vid.srcObject = userStream; vid.autoplay = true; friendContainer.append(vid); });
+                call.on('stream', s => { vid.srcObject = s; vid.autoplay = true; document.getElementById('friend-cams').append(vid); });
             });
-            socket.on('user-connected', userId => {
-                const call = peer.call(userId, stream);
+            socket.on('user-connected', id => {
+                const call = peer.call(id, stream);
                 const vid = document.createElement('video');
-                call.on('stream', userStream => { vid.srcObject = userStream; vid.autoplay = true; friendContainer.append(vid); });
+                call.on('stream', s => { vid.srcObject = s; vid.autoplay = true; document.getElementById('friend-cams').append(vid); });
             });
-        }).catch(err => console.log("Camera blocked or missing"));
+        }).catch(() => console.log("Cam blocked"));
 
         peer.on('open', id => socket.emit('join-room', roomId, id));
 
-        // 2. Movie Fallback Logic
-        function useFallback() {
+        // 2. Video Logic with Fallback
+        function launchFallback() {
             const container = document.getElementById('video-container');
-            if (container.innerHTML.includes('iframe')) return;
+            if (container.innerHTML.includes('iframe')) return; 
+            console.log("Switching to high-speed fallback player...");
             container.innerHTML = `<iframe src="https://vidsrc.me/embed/movie?imdb=${imdb}" allowfullscreen></iframe>`;
         }
 
-        function initMovie() {
-            if (typeof window.webtor === 'undefined') { useFallback(); return; }
+        function startTheater() {
+            if (typeof window.webtor === 'undefined') { launchFallback(); return; }
+
             window.webtor.push({
                 id: 'video-container',
                 hash: hash,
@@ -82,14 +82,16 @@
                         d.type === 'play' ? p.play() : p.pause();
                     });
                 },
-                onError: () => useFallback()
+                onError: () => launchFallback()
             });
         }
 
-        // If it's still "Finding Peers" after 8 seconds, swap to web player
-        setTimeout(() => { if (document.getElementById('status')) useFallback(); }, 8000);
-        
-        initMovie();
+        // If nothing plays in 5 seconds, force the fallback
+        setTimeout(() => {
+            if (document.getElementById('loading-text')) launchFallback();
+        }, 5000);
+
+        startTheater();
     </script>
 </body>
 </html>
