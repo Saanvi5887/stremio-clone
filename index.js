@@ -10,42 +10,26 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname)));
 
-// Fetch trending movies for the lobby
 app.get('/trending', async (req, res) => {
     try {
         const response = await axios.get(`https://api.themoviedb.org/3/trending/movie/week?api_key=d800759469a13ad76fd7f48830a046a8`);
         res.json(response.data.results);
-    } catch (e) { 
-        res.status(500).json([]); 
-    }
+    } catch (e) { res.status(500).json([]); }
 });
 
 io.on('connection', (socket) => {
-    // When a user joins, they pass their Room ID and their unique Peer ID (for video)
     socket.on('join-room', (roomId, userId) => {
         socket.join(roomId);
+        // Tell others a new video feed is available
+        if (userId) socket.to(roomId).emit('user-connected', userId);
+
+        socket.on('play-movie', (data) => socket.to(roomId).emit('start-stream', data));
+        socket.on('sync-event', (data) => socket.to(roomId).emit('apply-sync', data));
         
-        // Notify others in the room that a new user is ready for a video call
-        socket.to(roomId).emit('user-connected', userId);
-
-        // Handle movie playback signaling
-        socket.on('play-movie', (data) => {
-            socket.to(roomId).emit('start-stream', data);
-        });
-
-        // Handle playback sync (play/pause/seek)
-        socket.on('sync-event', (data) => {
-            socket.to(roomId).emit('apply-sync', data);
-        });
-
-        // Cleanup when a user leaves
         socket.on('disconnect', () => {
             socket.to(roomId).emit('user-disconnected', userId);
         });
     });
 });
 
-const PORT = process.env.PORT || 5001;
-server.listen(PORT, () => {
-    console.log(`🚀 Theater & Video Call Server running on port ${PORT}`);
-});
+server.listen(process.env.PORT || 5001, () => console.log('🚀 Theater & Call Online'));

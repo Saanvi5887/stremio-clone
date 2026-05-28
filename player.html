@@ -6,90 +6,71 @@
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://controls.webtor.io/v1/index.js" charset="utf-8"></script>
     <style>
-        body { margin:0; background:#000; color:#fff; font-family:sans-serif; display: flex; overflow:hidden; }
-        #main-theater { flex-grow: 1; position: relative; height: 100vh; }
-        #video-container { width: 100%; height: 100%; }
-        
-        /* Video Call Sidebar */
-        #call-sidebar { width: 250px; background: #111; border-left: 1px solid #00ff88; display: flex; flex-direction: column; padding: 10px; gap: 10px; overflow-y: auto; }
-        video { width: 100%; border-radius: 10px; border: 1px solid #333; background: #000; transform: scaleX(-1); }
-        .user-label { font-size: 10px; color: #00ff88; margin-top: -5px; margin-bottom: 5px; }
-
-        .bar { position:fixed; bottom:0; left:0; width: calc(100% - 250px); background:rgba(0,0,0,0.8); padding:15px; display:flex; justify-content:space-between; border-top: 1px solid #00ff88; z-index:100; }
+        body { margin:0; background:#000; color:#fff; font-family:sans-serif; display:flex; height:100vh; overflow:hidden; }
+        #theater { flex: 1; position: relative; background: #000; }
+        #video-container { width:100%; height:100%; }
+        #sidebar { width: 280px; background: #0a0a0a; border-left: 1px solid #00ff88; display: flex; flex-direction: column; padding: 10px; gap: 10px; overflow-y: auto; }
+        video { width: 100%; border-radius: 12px; border: 1px solid #333; background: #000; transform: scaleX(-1); }
+        .label { font-size: 11px; color: #00ff88; margin-bottom: 10px; text-transform: uppercase; }
+        .controls { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.8); padding: 15px; display: flex; justify-content: space-between; border-top: 1px solid #00ff88; }
+        iframe { width: 100%; height: 100%; border: none; }
     </style>
 </head>
 <body>
-    <div id="main-theater">
-        <div id="video-container"></div>
-        <div class="bar">
-            <span id="m-title">Loading Movie...</span>
-            <button onclick="window.location.href='/'" style="background:red; color:white; border:none; cursor:pointer; padding:5px 10px; border-radius:5px;">Exit</button>
+    <div id="theater">
+        <div id="video-container">
+            <div id="status" style="padding:20px;">Finding Peers...</div>
+        </div>
+        <div class="controls">
+            <span id="m-title" style="font-weight: bold;">Loading...</span>
+            <button onclick="window.location.href='/'" style="background:red; color:white; border:none; padding:5px 15px; border-radius:5px; cursor:pointer;">Exit</button>
         </div>
     </div>
 
-    <div id="call-sidebar">
-        <video id="my-video" autoplay muted playsinline></video>
-        <div class="user-label">YOU</div>
-        <div id="remote-videos"></div>
+    <div id="sidebar">
+        <div class="label">You</div>
+        <video id="my-cam" autoplay muted playsinline></video>
+        <div class="label">Friends</div>
+        <div id="friend-cams"></div>
     </div>
 
     <script>
         const params = new URLSearchParams(window.location.search);
         const roomId = params.get('room');
         const hash = params.get('hash');
+        const imdb = params.get('imdb');
         document.getElementById('m-title').innerText = params.get('title');
 
         const socket = io();
-        const peer = new Peer(); // Create unique ID for video call
-        const myVideo = document.getElementById('my-video');
-        const remoteContainer = document.getElementById('remote-videos');
-        const peers = {};
+        const peer = new Peer();
+        const friendContainer = document.getElementById('friend-cams');
 
-        // 1. Setup Camera
+        // 1. Camera Logic
         navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-            myVideo.srcObject = stream;
-
-            // Answer incoming calls
+            document.getElementById('my-cam').srcObject = stream;
             peer.on('call', call => {
                 call.answer(stream);
-                const video = document.createElement('video');
-                call.on('stream', userStream => addRemoteVideo(video, userStream, call.peer));
+                const vid = document.createElement('video');
+                call.on('stream', userStream => { vid.srcObject = userStream; vid.autoplay = true; friendContainer.append(vid); });
             });
-
             socket.on('user-connected', userId => {
                 const call = peer.call(userId, stream);
-                const video = document.createElement('video');
-                call.on('stream', userStream => addRemoteVideo(video, userStream, userId));
-                peers[userId] = call;
+                const vid = document.createElement('video');
+                call.on('stream', userStream => { vid.srcObject = userStream; vid.autoplay = true; friendContainer.append(vid); });
             });
-        });
+        }).catch(err => console.log("Camera blocked or missing"));
 
-        function addRemoteVideo(video, stream, id) {
-            video.srcObject = stream;
-            video.autoplay = true;
-            video.id = `vid-${id}`;
-            if (!document.getElementById(`vid-${id}`)) {
-                remoteContainer.append(video);
-                const label = document.createElement('div');
-                label.className = 'user-label';
-                label.innerText = "FRIEND";
-                remoteContainer.append(label);
-            }
+        peer.on('open', id => socket.emit('join-room', roomId, id));
+
+        // 2. Movie Fallback Logic
+        function useFallback() {
+            const container = document.getElementById('video-container');
+            if (container.innerHTML.includes('iframe')) return;
+            container.innerHTML = `<iframe src="https://vidsrc.me/embed/movie?imdb=${imdb}" allowfullscreen></iframe>`;
         }
 
-        peer.on('open', id => {
-            socket.emit('join-room', roomId, id);
-        });
-
-        socket.on('user-disconnected', userId => {
-            if (peers[userId]) peers[userId].close();
-            const vid = document.getElementById(`vid-${userId}`);
-            if (vid) vid.remove();
-        });
-
-        // 2. Setup Movie Engine
-        function startMovie() {
-            if (typeof window.webtor === 'undefined') { setTimeout(startMovie, 1000); return; }
+        function initMovie() {
+            if (typeof window.webtor === 'undefined') { useFallback(); return; }
             window.webtor.push({
                 id: 'video-container',
                 hash: hash,
@@ -100,10 +81,15 @@
                         if (Math.abs(p.getCurrentTime() - d.time) > 2) p.seek(d.time);
                         d.type === 'play' ? p.play() : p.pause();
                     });
-                }
+                },
+                onError: () => useFallback()
             });
         }
-        startMovie();
+
+        // If it's still "Finding Peers" after 8 seconds, swap to web player
+        setTimeout(() => { if (document.getElementById('status')) useFallback(); }, 8000);
+        
+        initMovie();
     </script>
 </body>
 </html>

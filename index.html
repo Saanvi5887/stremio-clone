@@ -7,14 +7,15 @@
         body { background: #050505; color: #e0e0e0; font-family: 'Inter', sans-serif; padding: 40px; text-align: center; }
         .input-group { background: #111; padding: 25px; border-radius: 15px; border: 1px solid #333; max-width: 500px; margin: 0 auto 40px; }
         input { background: #000; border: 1px solid #444; color: #fff; padding: 12px; border-radius: 30px; outline: none; }
-        button { padding: 12px 25px; border-radius: 30px; border: none; cursor: pointer; font-weight: bold; background: #00ff88; margin: 5px; }
+        button { padding: 12px 25px; border-radius: 30px; border: none; cursor: pointer; font-weight: bold; background: #00ff88; margin: 5px; transition: 0.3s; }
+        button:hover { transform: scale(1.05); box-shadow: 0 0 15px #00ff8844; }
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 30px; }
         .card { background: #111; border: 1px solid #222; border-radius: 15px; overflow: hidden; cursor: pointer; transition: 0.3s; }
-        .card:hover { border-color: #00ff88; transform: translateY(-5px); box-shadow: 0 0 20px rgba(0,255,136,0.2); }
+        .card:hover { border-color: #00ff88; transform: translateY(-5px); }
         .card img { width: 100%; height: 300px; object-fit: cover; }
         #modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index: 1000; align-items:center; justify-content:center; }
-        .modal-content { background:#111; padding:30px; border-radius:20px; border:1px solid #00ff88; width:90%; max-width:400px; }
-        .stream-item { background:#222; padding:15px; margin:10px 0; border-radius:10px; cursor:pointer; text-align:left; border: 1px solid #333; }
+        .modal-content { background:#111; padding:30px; border-radius:20px; border: 1px solid #00ff88; width: 90%; max-width: 400px; }
+        .stream-item { background:#222; padding:15px; margin:10px 0; border-radius:10px; cursor:pointer; text-align:left; font-size: 14px; border: 1px solid #333; }
         .stream-item:hover { background: #00ff88; color: #000; }
     </style>
 </head>
@@ -22,12 +23,12 @@
     <h1 style="color:#00ff88; letter-spacing:5px;">STREMIO PARTY</h1>
     <div class="input-group">
         <input type="text" id="room-id" placeholder="Room ID">
-        <button onclick="joinRoom()">Join</button>
-        <button onclick="createRoom()" style="background:#333; color:#fff">Create</button>
-        <p id="status" style="font-size:12px; margin-top:10px;">Offline</p>
+        <button onclick="joinRoom()">Join Room</button>
+        <button onclick="createRoom()" style="background:#333; color:#fff">Create New</button>
+        <p id="status" style="font-size: 12px; margin-top:10px; color: #888;">Not Connected</p>
     </div>
     <div id="movie-grid" class="grid"></div>
-    <div id="modal"><div class="modal-content"><h3>Select Stream</h3><div id="stream-list"></div><button onclick="document.getElementById('modal').style.display='none'">Close</button></div></div>
+    <div id="modal"><div class="modal-content"><h3 style="color:#00ff88">Select Quality</h3><div id="stream-list"></div><button onclick="document.getElementById('modal').style.display='none'" style="background:#444; color:#fff">Close</button></div></div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
@@ -44,7 +45,7 @@
             currentRoom = document.getElementById('room-id').value.trim();
             if (!currentRoom) return;
             socket.emit('join-room', currentRoom);
-            document.getElementById('status').innerText = "Connected: " + currentRoom;
+            document.getElementById('status').innerText = "In Room: " + currentRoom;
             document.getElementById('status').style.color = "#00ff88";
         }
 
@@ -56,6 +57,7 @@
                 card.className = 'card';
                 card.innerHTML = `<img src="https://image.tmdb.org/t/p/w500${m.poster_path}"><h3>${m.title}</h3>`;
                 card.onclick = async () => {
+                    if (!currentRoom) return alert("Join a room first!");
                     document.getElementById('modal').style.display = 'flex';
                     const tmdb = await (await fetch(`https://api.themoviedb.org/3/movie/${m.id}?api_key=d800759469a13ad76fd7f48830a046a8`)).json();
                     const res = await (await fetch(`https://torrentio.strem.fun/stream/movie/${tmdb.imdb_id}.json`)).json();
