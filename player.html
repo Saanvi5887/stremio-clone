@@ -11,10 +11,9 @@
         #player-wrapper { flex: 1; position: relative; }
         iframe { width: 100%; height: 100%; border: none; }
         
-        /* SLEEK ICON CONTROLS */
         .controls { 
             background: #0a0a0a; padding: 15px; display: flex; 
-            justify-content: center; gap: 25px; border-top: 1px solid #00ff88;
+            justify-content: center; gap: 20px; border-top: 1px solid #00ff88;
             align-items: center;
         }
         
@@ -25,17 +24,23 @@
             font-size: 18px; transition: 0.3s;
         }
         .icon-btn:hover { border-color: #00ff88; color: #00ff88; }
-        .icon-btn.off { background: #ff4444; border-color: #ff4444; color: white; }
+        .icon-btn.off { background: #ff4444; border-color: #ff4444; }
         
         .sync-btn {
             background: #00ff88; color: #000; padding: 10px 20px; 
             border-radius: 5px; font-weight: bold; border: none; cursor: pointer;
         }
 
-        #sidebar { width: 250px; background: #050505; border-left: 1px solid #333; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+        #sidebar { width: 250px; background: #050505; border-left: 1px solid #333; padding: 10px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
+        .cam-container { position: relative; width: 100%; margin-bottom: 5px; }
         .cam-box { width: 100%; border-radius: 8px; background: #222; border: 1px solid #444; overflow: hidden; }
         video.cam { width: 100%; transform: scaleX(-1); display: block; }
-        .tag { font-size: 10px; color: #00ff88; font-weight: bold; text-transform: uppercase; }
+        .name-tag { 
+            position: absolute; bottom: 5px; left: 5px; 
+            background: rgba(0,0,0,0.7); padding: 2px 8px; 
+            border-radius: 4px; font-size: 11px; color: #00ff88;
+            font-weight: bold; pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -46,25 +51,17 @@
 
         <div class="controls">
             <button class="sync-btn" onclick="syncRefresh()"><i class="fas fa-sync-alt"></i> REFRESH PARTY</button>
-            
-            <button id="mic-btn" class="icon-btn" onclick="toggleMic()">
-                <i class="fas fa-microphone"></i>
-            </button>
-            
-            <button id="cam-btn" class="icon-btn" onclick="toggleCam()">
-                <i class="fas fa-video"></i>
-            </button>
-
-            <button class="icon-btn" style="color:#ff4444" onclick="window.location.href='/'">
-                <i class="fas fa-sign-out-alt"></i>
-            </button>
+            <button id="mic-btn" class="icon-btn" onclick="toggleMic()"><i class="fas fa-microphone"></i></button>
+            <button id="cam-btn" class="icon-btn" onclick="toggleCam()"><i class="fas fa-video"></i></button>
+            <button class="icon-btn" style="color:#ff4444" onclick="window.location.href='/'"><i class="fas fa-sign-out-alt"></i></button>
         </div>
     </div>
 
     <div id="sidebar">
-        <div class="tag">You</div>
-        <div class="cam-box"><video id="my-cam" class="cam" autoplay muted playsinline></video></div>
-        <div class="tag">Friends</div>
+        <div class="cam-container">
+            <div class="cam-box"><video id="my-cam" class="cam" autoplay muted playsinline></video></div>
+            <div id="my-name-tag" class="name-tag">You</div>
+        </div>
         <div id="friend-cams"></div>
     </div>
 
@@ -73,7 +70,12 @@
         const roomId = params.get('room');
         const imdb = params.get('imdb');
         const socket = io();
-        const peer = new Peer();
+        
+        // Ask for name immediately
+        const userName = prompt("Enter your nickname for the party:", "Guest") || "Guest";
+        document.getElementById('my-name-tag').innerText = userName + " (You)";
+
+        const peer = new Peer(null, { debug: 1 });
         const player = document.getElementById('main-player');
         let myStream;
         let isMicOn = true;
@@ -85,40 +87,56 @@
             try {
                 myStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
                 document.getElementById('my-cam').srcObject = myStream;
-                peer.on('call', c => { c.answer(myStream); c.on('stream', s => addFriend(s, c.peer)); });
+                
+                // When we receive a call, the metadata contains their name
+                peer.on('call', c => {
+                    c.answer(myStream);
+                    const remoteName = c.metadata ? c.metadata.userName : "Friend";
+                    c.on('stream', s => addFriend(s, c.peer, remoteName));
+                });
             } catch(e) { console.error("Media error"); }
         }
 
-        function addFriend(stream, id) {
+        function addFriend(stream, id, name) {
             if (document.getElementById(id)) return;
-            const box = document.createElement('div'); box.className = 'cam-box'; box.id = id;
-            const v = document.createElement('video'); v.className = 'cam'; v.srcObject = stream; v.autoplay = true; v.playsinline = true;
-            box.appendChild(v); document.getElementById('friend-cams').appendChild(box);
+            const container = document.createElement('div');
+            container.className = 'cam-container';
+            container.id = id;
+            container.innerHTML = `
+                <div class="cam-box"><video id="video-${id}" class="cam" autoplay playsinline></video></div>
+                <div class="name-tag">${name}</div>
+            `;
+            document.getElementById('friend-cams').appendChild(container);
+            document.getElementById(`video-${id}`).srcObject = stream;
         }
 
-        peer.on('open', id => socket.emit('join-room', roomId, id));
+        peer.on('open', id => {
+            socket.emit('join-room', roomId, id);
+        });
+
         socket.on('user-connected', userId => {
+            // When we call others, we send OUR name in the metadata
             setTimeout(() => {
-                const call = peer.call(userId, myStream);
-                call.on('stream', s => addFriend(s, userId));
+                const call = peer.call(userId, myStream, { metadata: { userName: userName } });
+                call.on('stream', s => addFriend(s, userId, "Joining...")); 
+                // Note: In a real multi-user scenario, you'd exchange names via socket too, 
+                // but this PeerJS metadata trick is the fastest fix for now.
             }, 1000);
         });
 
-        // TOGGLE FUNCTIONS
+        // Toggles
         function toggleMic() {
             isMicOn = !isMicOn;
             myStream.getAudioTracks()[0].enabled = isMicOn;
-            const btn = document.getElementById('mic-btn');
-            btn.classList.toggle('off', !isMicOn);
-            btn.innerHTML = isMicOn ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
+            document.getElementById('mic-btn').classList.toggle('off', !isMicOn);
+            document.getElementById('mic-btn').innerHTML = isMicOn ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
         }
 
         function toggleCam() {
             isCamOn = !isCamOn;
             myStream.getVideoTracks()[0].enabled = isCamOn;
-            const btn = document.getElementById('cam-btn');
-            btn.classList.toggle('off', !isCamOn);
-            btn.innerHTML = isCamOn ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash"></i>';
+            document.getElementById('cam-btn').classList.toggle('off', !isCamOn);
+            document.getElementById('cam-btn').innerHTML = isCamOn ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash"></i>';
         }
 
         function syncRefresh() { socket.emit('sync-event', { roomId, type: 'reload' }); }
