@@ -130,10 +130,9 @@
         .loading-text { color: #00ff88; font-weight: bold; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
     </style>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
-    <h1>STREMIO CLONE</h1>
+    <h1>STREMIO PARTY</h1>
     
     <div class="controls-container">
         <div class="input-group">
@@ -154,10 +153,12 @@
         </div>
     </div>
 
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
         const socket = io();
         let currentRoom = null;
 
+        // 1. Room Management
         function joinRoom() {
             const inputVal = document.getElementById('room-input').value.trim();
             if (!inputVal) return alert("Please enter a Room ID");
@@ -176,6 +177,7 @@
             } catch (err) { alert("Server connection failed."); }
         }
 
+        // 2. Movie Loading
         async function loadMovies() {
             try {
                 const res = await fetch('/trending');
@@ -189,25 +191,28 @@
                     card.innerHTML = `<img src="https://image.tmdb.org/t/p/w500${m.poster_path}"><h3>${m.title}</h3>`;
                     grid.appendChild(card);
                 });
-            } catch (e) { grid.innerHTML = "Error loading movies."; }
+            } catch (e) { document.getElementById('movie-grid').innerHTML = "Error loading movies."; }
         }
 
+        // 3. Stream Fetching & Sync Emission
         async function fetchStreams(tmdbId, title) {
             if (!currentRoom) return alert("Join a room first!");
             
             document.getElementById('stream-modal').style.display = 'flex';
             const list = document.getElementById('stream-list');
-            list.innerHTML = "<div class='loading-text'>Fetching streams...</div>";
+            list.innerHTML = "<div class='loading-text'>Finding high-quality links...</div>";
             
             let currentImdbId = null;
 
             try {
+                // Get IMDB ID from TMDB
                 const tmdbRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=d800759469a13ad76fd7f48830a046a8`);
                 const movieData = await tmdbRes.json();
                 currentImdbId = movieData.imdb_id;
 
                 if (!currentImdbId) throw new Error("No IMDB ID found");
 
+                // Get Torrent Streams
                 const streamRes = await fetch(`https://torrentio.strem.fun/stream/movie/${currentImdbId}.json`);
                 const data = await streamRes.json();
                 const streams = data.streams;
@@ -218,14 +223,16 @@
                 }
 
                 list.innerHTML = '';
-                streams.slice(0, 10).forEach(s => {
+                streams.slice(0, 8).forEach(s => {
                     const item = document.createElement('div');
                     item.className = 'stream-item';
                     const quality = s.title.includes('1080') ? '1080p' : (s.title.includes('720') ? '720p' : 'SD');
                     item.innerHTML = `<strong>${s.name} [${quality}]</strong><br><small>${s.title.split('\n')[0]}</small>`;
                     
                     item.onclick = () => {
-                        console.log("Emitting play-movie for:", title);
+                        console.log("Broadcasting movie selection to room...");
+                        // This sends the infoHash and IMDB ID to the server, 
+                        // which then tells EVERYONE to move to player.html
                         socket.emit('play-movie', { 
                             roomId: currentRoom, 
                             infoHash: s.infoHash, 
@@ -237,19 +244,16 @@
                 });
 
             } catch (e) {
-                list.innerHTML = `
-                    <div style="color: #ff4444; margin-bottom:10px;">⚠️ Connection Error</div>
-                    <button onclick="window.open('https://torrentio.strem.fun/lite/movie/${currentImdbId}', '_blank')" 
-                            style="background:#e02f2f; color:white; padding: 10px; border-radius: 5px; border:none; cursor:pointer;">
-                        Manual Link Lookup
-                    </button>
-                `;
+                list.innerHTML = `<div style="color: #ff4444;">Error fetching links. Try again.</div>`;
             }
         }
 
+        // 4. Global Redirect Listener
         socket.on('start-stream', (data) => {
-            console.log("Redirecting to player...");
-            window.location.href = `/player?hash=${data.infoHash}&title=${encodeURIComponent(data.title)}&room=${currentRoom}&imdb=${data.imdb}`;
+            console.log("Sync initiated. Moving to Theater...");
+            // CRITICAL: We pass the hash, title, room, and imdb so the player can sync
+            const targetUrl = `/player?hash=${data.infoHash}&title=${encodeURIComponent(data.title)}&room=${data.roomId}&imdb=${data.imdb}`;
+            window.location.href = targetUrl;
         });
 
         function closeModal() { document.getElementById('stream-modal').style.display = 'none'; }
