@@ -193,62 +193,62 @@
         }
 
         async function fetchStreams(tmdbId, title) {
-    if (!currentRoom) return alert("Join a room first!");
-    
-    document.getElementById('stream-modal').style.display = 'flex';
-    const list = document.getElementById('stream-list');
-    list.innerHTML = "<div class='loading-text'>Fetching streams (Direct Client Link)...</div>";
-    
-    try {
-        // 1. Get IMDB ID from TMDB (This still works from the server/client)
-        const tmdbRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=d800759469a13ad76fd7f48830a046a8`);
-        const movieData = await tmdbRes.json();
-        const imdbId = movieData.imdb_id;
+            if (!currentRoom) return alert("Join a room first!");
+            
+            document.getElementById('stream-modal').style.display = 'flex';
+            const list = document.getElementById('stream-list');
+            list.innerHTML = "<div class='loading-text'>Fetching streams...</div>";
+            
+            let currentImdbId = null;
 
-        if (!imdbId) throw new Error("No IMDB ID found");
+            try {
+                const tmdbRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=d800759469a13ad76fd7f48830a046a8`);
+                const movieData = await tmdbRes.json();
+                currentImdbId = movieData.imdb_id;
 
-        // 2. BYPASS THE SERVER: Fetch directly from Torrentio using the BROWSER
-        // This prevents the "500 Error" from Render's blocked IP
-        const streamRes = await fetch(`https://torrentio.strem.fun/stream/movie/${imdbId}.json`);
-        const data = await streamRes.json();
-        const streams = data.streams;
+                if (!currentImdbId) throw new Error("No IMDB ID found");
 
-        if (!streams || streams.length === 0) {
-            list.innerHTML = "❌ No active streams found for this movie.";
-            return;
+                const streamRes = await fetch(`https://torrentio.strem.fun/stream/movie/${currentImdbId}.json`);
+                const data = await streamRes.json();
+                const streams = data.streams;
+
+                if (!streams || streams.length === 0) {
+                    list.innerHTML = "❌ No active streams found.";
+                    return;
+                }
+
+                list.innerHTML = '';
+                streams.slice(0, 10).forEach(s => {
+                    const item = document.createElement('div');
+                    item.className = 'stream-item';
+                    const quality = s.title.includes('1080') ? '1080p' : (s.title.includes('720') ? '720p' : 'SD');
+                    item.innerHTML = `<strong>${s.name} [${quality}]</strong><br><small>${s.title.split('\n')[0]}</small>`;
+                    
+                    item.onclick = () => {
+                        console.log("Emitting play-movie for:", title);
+                        socket.emit('play-movie', { 
+                            roomId: currentRoom, 
+                            infoHash: s.infoHash, 
+                            title: title,
+                            imdb: currentImdbId 
+                        });
+                    };
+                    list.appendChild(item);
+                });
+
+            } catch (e) {
+                list.innerHTML = `
+                    <div style="color: #ff4444; margin-bottom:10px;">⚠️ Connection Error</div>
+                    <button onclick="window.open('https://torrentio.strem.fun/lite/movie/${currentImdbId}', '_blank')" 
+                            style="background:#e02f2f; color:white; padding: 10px; border-radius: 5px; border:none; cursor:pointer;">
+                        Manual Link Lookup
+                    </button>
+                `;
+            }
         }
 
-        list.innerHTML = '';
-        streams.slice(0, 10).forEach(s => {
-            const item = document.createElement('div');
-            item.className = 'stream-item';
-            const quality = s.title.includes('1080') ? '1080p' : (s.title.includes('720') ? '720p' : 'SD');
-            item.innerHTML = `<strong>${s.name} [${quality}]</strong><br><small>${s.title.split('\n')[0]}</small>`;
-            
-            item.onclick = () => {
-                socket.emit('play-movie', { 
-                    roomId: currentRoom, 
-                    infoHash: s.infoHash, 
-                    title: title,
-                    imdb: imdbId 
-                });
-            };
-            list.appendChild(item);
-        });
-
-    } catch (e) {
-        console.error("Direct Fetch Error:", e);
-        list.innerHTML = `
-            <div style="color: #ff4444; margin-bottom:10px;">⚠️ Direct Fetch Blocked</div>
-            <p style="font-size: 0.8rem;">Your browser blocked the direct link (CORS). Click below to find the link:</p>
-            <button onclick="window.open('https://torrentio.strem.fun/lite/movie/${imdbId}', '_blank')" 
-                    style="background:#e02f2f; color:white; padding: 10px; border-radius: 5px; border:none; cursor:pointer;">
-                Manual Link Lookup
-            </button>
-        `;
-    }
-}
         socket.on('start-stream', (data) => {
+            console.log("Redirecting to player...");
             window.location.href = `/player?hash=${data.infoHash}&title=${encodeURIComponent(data.title)}&room=${currentRoom}&imdb=${data.imdb}`;
         });
 
