@@ -10,48 +10,38 @@
         #theater { flex: 1; position: relative; background: #000; display: flex; flex-direction: column; }
         #video-container { flex: 1; width:100%; height:100%; position: relative; }
         
-        /* THE NEW PLAYER CONTROLS BAR */
+        /* CUSTOM CONTROL BARS */
         #custom-controls {
-            position: absolute;
-            bottom: 80px; /* Sits above the Cam/Mic bar */
-            left: 50%;
-            transform: translateX(-50%);
-            width: 90%;
-            max-width: 800px;
-            background: rgba(0, 0, 0, 0.85);
-            padding: 10px 20px;
-            border-radius: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-            z-index: 10000;
-            border: 1px solid #444;
+            position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 800px; background: rgba(0, 0, 0, 0.9);
+            padding: 12px; border-radius: 10px; display: flex; flex-direction: column;
+            gap: 8px; z-index: 10000; border: 1px solid #00ff8844;
         }
-
-        .progress-row { display: flex; align-items: center; gap: 10px; width: 100%; }
+        .progress-row { display: flex; align-items: center; gap: 10px; }
         #progress-bar { flex: 1; cursor: pointer; accent-color: #00ff88; }
-        .time-display { font-size: 12px; font-family: monospace; color: #aaa; min-width: 80px; }
+        .time-display { font-size: 11px; font-family: monospace; color: #00ff88; }
+        .buttons-row { display: flex; align-items: center; gap: 15px; }
 
-        .buttons-row { display: flex; align-items: center; gap: 20px; }
-        .play-btn { background: none; border: none; color: #00ff88; font-size: 20px; cursor: pointer; }
-
-        /* THE CAM/MIC BAR */
         .room-bar { 
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
-            background: #111; padding: 10px 20px; border-radius: 50px; border: 1px solid #00ff88;
-            display: flex; gap: 20px; z-index: 10001;
+            background: #111; padding: 10px 25px; border-radius: 50px; border: 1px solid #00ff88;
+            display: flex; gap: 20px; z-index: 10001; box-shadow: 0 0 15px #00ff8833;
         }
 
-        #sidebar { width: 240px; background: #0a0a0a; border-left: 2px solid #00ff88; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
-        video { width: 100%; border-radius: 8px; transform: scaleX(-1); background: #000; }
-        button { background: none; border: none; color: white; cursor: pointer; font-weight: bold; }
+        /* SIDEBAR */
+        #sidebar { width: 240px; background: #0a0a0a; border-left: 2px solid #00ff88; padding: 10px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+        .vid-box { position: relative; width: 100%; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
+        video { width: 100%; background: #000; transform: scaleX(-1); display: block; }
+        .name-tag { position: absolute; bottom: 5px; left: 5px; background: rgba(0,0,0,0.6); font-size: 10px; padding: 2px 5px; color: #00ff88; }
+        
+        button { background: none; border: none; color: white; cursor: pointer; font-weight: bold; font-size: 13px; }
         iframe { width: 100%; height: 100%; border: none; }
     </style>
 </head>
 <body>
     <div id="theater">
         <div id="video-container">
-            <div id="loading" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#00ff88;">LOADING THEATER...</div>
+            <div id="loading" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#00ff88; font-family: monospace;">INITIALIZING PARTY SYNC...</div>
         </div>
         
         <div id="custom-controls">
@@ -61,8 +51,7 @@
                 <span id="total-time" class="time-display">00:00</span>
             </div>
             <div class="buttons-row">
-                <button class="play-btn" id="master-play-pause">▶</button>
-                <span style="font-size: 12px; color: #666;">Party Sync Active</span>
+                <button onclick="masterPlay()" style="color:#00ff88; font-size: 18px;" id="pp-node">▶ Play / ⏸ Pause</button>
             </div>
         </div>
 
@@ -74,7 +63,10 @@
     </div>
 
     <div id="sidebar">
-        <video id="my-cam" autoplay muted playsinline></video>
+        <div class="vid-box">
+            <video id="my-cam" autoplay muted playsinline></video>
+            <div class="name-tag">YOU</div>
+        </div>
         <div id="friend-cams"></div>
     </div>
 
@@ -82,37 +74,68 @@
         const params = new URLSearchParams(window.location.search);
         const roomId = params.get('room');
         const socket = io();
-        const peer = new Peer();
+        const peer = new Peer(); // PeerJS handles video
         let myStream;
         let playerRef = null;
 
-        // 1. Camera/Mic Logic
+        // 1. VIDEO CALL SYNC
         async function initCamera() {
-            myStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            document.getElementById('my-cam').srcObject = myStream;
-            peer.on('call', call => {
-                call.answer(myStream);
+            try {
+                myStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('my-cam').srcObject = myStream;
+
+                peer.on('call', call => {
+                    call.answer(myStream);
+                    setupRemoteVideo(call);
+                });
+            } catch (e) { console.log("Cam error"); }
+        }
+
+        function setupRemoteVideo(call) {
+            call.on('stream', s => {
+                if (document.getElementById('remote-vid')) return;
+                const container = document.createElement('div');
+                container.className = 'vid-box';
                 const vid = document.createElement('video');
-                call.on('stream', s => { vid.srcObject = s; vid.autoplay = true; document.getElementById('friend-cams').append(vid); });
-            });
-            socket.on('user-connected', id => {
-                const call = peer.call(id, myStream);
-                const vid = document.createElement('video');
-                call.on('stream', s => { vid.srcObject = s; vid.autoplay = true; document.getElementById('friend-cams').append(vid); });
+                vid.id = 'remote-vid';
+                vid.srcObject = s;
+                vid.autoplay = true;
+                vid.playsinline = true;
+                container.innerHTML = `<div class="name-tag">FRIEND</div>`;
+                container.prepend(vid);
+                document.getElementById('friend-cams').append(container);
             });
         }
+
+        // Connect to Room & Share Peer ID
+        peer.on('open', id => {
+            console.log("My Peer ID:", id);
+            socket.emit('join-room', roomId, id);
+        });
+
+        // When a friend joins, call them immediately
+        socket.on('user-connected', userId => {
+            console.log("Calling friend:", userId);
+            const call = peer.call(userId, myStream);
+            setupRemoteVideo(call);
+        });
 
         function toggleCam() { myStream.getVideoTracks()[0].enabled = !myStream.getVideoTracks()[0].enabled; }
         function toggleMic() { myStream.getAudioTracks()[0].enabled = !myStream.getAudioTracks()[0].enabled; }
 
-        peer.on('open', id => socket.emit('join-room', roomId, id));
+        // 2. MOVIE SYNC
+        function masterPlay() {
+            if (!playerRef) return;
+            if (playerRef.isPaused()) { playerRef.play(); } else { playerRef.pause(); }
+        }
 
-        // 2. Movie Logic & Custom UI Bridge
         function startTheater() {
+            const container = document.getElementById('video-container');
             if (typeof window.webtor === 'undefined') {
-                document.getElementById('video-container').innerHTML = `<iframe src="https://vidsrc.me/embed/movie?imdb=${params.get('imdb')}" allowfullscreen></iframe>`;
+                container.innerHTML = `<iframe src="https://vidsrc.me/embed/movie?imdb=${params.get('imdb')}" allowfullscreen></iframe>`;
                 return;
             }
+
             window.webtor.push({
                 id: 'video-container',
                 hash: params.get('hash'),
@@ -120,7 +143,7 @@
                     playerRef = p;
                     document.getElementById('loading').style.display = 'none';
 
-                    // Update UI every second
+                    // Update UI Sliders
                     setInterval(() => {
                         const cur = p.getCurrentTime();
                         const dur = p.getDuration();
@@ -129,32 +152,31 @@
                         document.getElementById('progress-bar').value = (cur / dur) * 100;
                     }, 1000);
 
-                    // Custom Controls Actions
-                    document.getElementById('master-play-pause').onclick = () => {
-                        if (p.isPaused()) { p.play(); } else { p.pause(); }
-                    };
-
                     document.getElementById('progress-bar').oninput = (e) => {
                         const seekTo = (e.target.value / 100) * p.getDuration();
                         p.seek(seekTo);
+                        socket.emit('sync-event', { roomId, type: 'seek', time: seekTo });
                     };
 
-                    // SYNC LOGIC
+                    // Listen for Sync from Others
                     p.on('play', () => socket.emit('sync-event', { roomId, type: 'play', time: p.getCurrentTime() }));
                     p.on('pause', () => socket.emit('sync-event', { roomId, type: 'pause', time: p.getCurrentTime() }));
+                    
                     socket.on('apply-sync', (d) => {
+                        console.log("Sync Received:", d.type);
                         if (Math.abs(p.getCurrentTime() - d.time) > 2) p.seek(d.time);
-                        d.type === 'play' ? p.play() : p.pause();
+                        if (d.type === 'play') p.play();
+                        if (d.type === 'pause') p.pause();
                     });
                 }
             });
         }
 
-        function formatTime(seconds) {
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = Math.floor(seconds % 60);
-            return h > 0 ? `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : `${m}:${s.toString().padStart(2,'0')}`;
+        function formatTime(s) {
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            const sec = Math.floor(s % 60);
+            return h > 0 ? `${h}:${m.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}` : `${m}:${sec.toString().padStart(2,'0')}`;
         }
 
         initCamera();
