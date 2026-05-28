@@ -202,43 +202,42 @@
             }
         }
 
-        async function fetchStreams(tmdbId, title) {
-    if (!currentRoom) return alert("You must Join or Create a room first!");
+  async function fetchStreams(tmdbId, title) {
+    if (!currentRoom) return alert("Join a room first!");
     
     document.getElementById('stream-modal').style.display = 'flex';
     const list = document.getElementById('stream-list');
-    list.innerHTML = "Searching Torrentio...";
+    list.innerHTML = "<div class='loading'>Searching for quality streams...</div>";
 
     try {
-        // 1. Get detailed movie info to find the IMDB ID
-        const tmdbRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=d800759469a13ad76fd7f48830a046a8`);
-        const data = await tmdbRes.json();
-        
-        const imdbId = data.imdb_id;
+        // 1. Get IMDB ID from TMDB
+        const tmdbUrl = `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=d800759469a13ad76fd7f48830a046a8`;
+        const tmdbRes = await fetch(tmdbUrl);
+        const movieData = await tmdbRes.json();
+        const imdbId = movieData.imdb_id;
 
-        // Safety Check: If no IMDB ID, we can't search Torrentio
         if (!imdbId) {
-            list.innerHTML = "❌ No IMDB ID found for this movie. Try another one!";
+            list.innerHTML = "❌ No IMDB ID found for this title.";
             return;
         }
 
-        // 2. Fetch from YOUR server's proxy
+        // 2. Fetch streams from YOUR server
         const streamRes = await fetch(`/streams/${imdbId}`);
-        
-        if (!streamRes.ok) throw new Error("Server responded with error");
-        
         const streams = await streamRes.json();
-        
-        list.innerHTML = '';
+
         if (!streams || streams.length === 0) {
-            list.innerHTML = "No streams found. Torrentio might be down or this movie is too new.";
+            list.innerHTML = "No streams found. Try another movie!";
             return;
         }
 
-        streams.slice(0, 5).forEach(s => {
+        list.innerHTML = '';
+        streams.slice(0, 8).forEach(s => {
             const item = document.createElement('div');
             item.className = 'stream-item';
-            item.innerHTML = `<strong>${s.name}</strong><br><small>${s.title.split('\n')[0]}</small>`;
+            // Show quality info (1080p, 720p) if available in the title
+            const quality = s.title.includes('1080p') ? '1080p' : (s.title.includes('720p') ? '720p' : 'SD');
+            item.innerHTML = `<strong>${s.name} [${quality}]</strong><br><small>${s.title.split('\n')[0]}</small>`;
+            
             item.onclick = () => {
                 socket.emit('play-movie', { 
                     roomId: currentRoom, 
@@ -249,9 +248,8 @@
             };
             list.appendChild(item);
         });
-    } catch (e) { 
-        console.error(e);
-        list.innerHTML = "⚠️ Error fetching streams. Try refreshing the page or picking a different movie."; 
+    } catch (e) {
+        list.innerHTML = "⚠️ Connection Error. The server might be waking up—try again in 5 seconds.";
     }
 }
 

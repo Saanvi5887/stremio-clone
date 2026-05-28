@@ -51,10 +51,17 @@ app.get('/trending', async (req, res) => {
 // Torrentio Stream Integration
 app.get('/streams/:id', async (req, res) => {
     try {
-        const response = await axios.get(`https://torrentio.strem.fun/stream/movie/${req.params.id}.json`);
+        const imdbId = req.params.id;
+        console.log(`Searching streams for: ${imdbId}`);
+        
+        // Ensure we are calling the correct Torrentio URL format
+        const url = `https://torrentio.strem.fun/stream/movie/${imdbId}.json`;
+        const response = await axios.get(url, { timeout: 5000 }); // 5 second timeout
+        
         res.json(response.data.streams || []);
     } catch (e) { 
-        res.status(500).json({ error: "Torrentio API Failed" }); 
+        console.error("Torrentio Error:", e.message);
+        res.status(500).json({ error: "Torrentio Failed", details: e.message }); 
     }
 });
 
