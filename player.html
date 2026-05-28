@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Theater & Call</title>
+    <title>Party & Call</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://controls.webtor.io/v1/index.js" charset="utf-8"></script>
@@ -9,9 +9,13 @@
         body { margin:0; background:#000; color:#fff; font-family:sans-serif; display:flex; height:100vh; overflow:hidden; }
         #theater { flex: 1; position: relative; background: #000; }
         #video-container { width:100%; height:100%; display: flex; align-items: center; justify-content: center; }
-        #sidebar { width: 260px; background: #0a0a0a; border-left: 1px solid #00ff88; display: flex; flex-direction: column; padding: 10px; gap: 10px; }
+        #sidebar { width: 260px; background: #0a0a0a; border-left: 1px solid #00ff88; display: flex; flex-direction: column; padding: 10px; gap: 10px; overflow-y: auto; }
         video { width: 100%; border-radius: 10px; border: 1px solid #333; background: #000; transform: scaleX(-1); }
-        .controls { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.8); padding: 15px; display: flex; justify-content: space-between; border-top: 1px solid #00ff88; z-index: 10; }
+        .controls { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.85); padding: 15px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #00ff88; z-index: 100; }
+        .btn-group { display: flex; gap: 10px; }
+        button { padding: 8px 15px; border-radius: 5px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-toggle { background: #333; color: white; border: 1px solid #00ff88; }
+        .btn-exit { background: #ff4444; color: white; }
         iframe { width: 100%; height: 100%; border: none; }
         .status-msg { color: #00ff88; font-family: monospace; }
     </style>
@@ -19,17 +23,22 @@
 <body>
     <div id="theater">
         <div id="video-container">
-            <div id="loading-text" class="status-msg">STABLIZING STREAM...</div>
+            <div id="loading-text" class="status-msg">STABILIZING STREAM...</div>
         </div>
         <div class="controls">
-            <span id="m-title">Loading...</span>
-            <button onclick="window.location.href='/'" style="background:red; color:white; border:none; padding:5px 15px; border-radius:5px; cursor:pointer;">Exit</button>
+            <span id="m-title" style="color:#00ff88">Loading...</span>
+            <div class="btn-group">
+                <button id="cam-btn" class="btn-toggle" onclick="toggleCam()">📷 Camera On</button>
+                <button id="mic-btn" class="btn-toggle" onclick="toggleMic()">🎤 Mic On</button>
+                <button class="btn-exit" onclick="window.location.href='/'">Exit Theater</button>
+            </div>
         </div>
     </div>
 
     <div id="sidebar">
-        <div style="font-size: 10px; color:#00ff88;">CAMERAS</div>
+        <div style="font-size: 10px; color:#00ff88;">YOU</div>
         <video id="my-cam" autoplay muted playsinline></video>
+        <div style="font-size: 10px; color:#00ff88; margin-top:10px;">FRIENDS</div>
         <div id="friend-cams"></div>
     </div>
 
@@ -42,29 +51,59 @@
 
         const socket = io();
         const peer = new Peer();
+        let myStream;
 
-        // 1. Camera Setup
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-            document.getElementById('my-cam').srcObject = stream;
-            peer.on('call', call => {
-                call.answer(stream);
-                const vid = document.createElement('video');
-                call.on('stream', s => { vid.srcObject = s; vid.autoplay = true; document.getElementById('friend-cams').append(vid); });
-            });
-            socket.on('user-connected', id => {
-                const call = peer.call(id, stream);
-                const vid = document.createElement('video');
-                call.on('stream', s => { vid.srcObject = s; vid.autoplay = true; document.getElementById('friend-cams').append(vid); });
-            });
-        }).catch(() => console.log("Cam blocked"));
+        // 1. Camera Logic with Toggle
+        async function initCamera() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const laptopCam = devices.find(d => d.kind === 'videoinput' && d.label.toLowerCase().includes('integrated'));
+                
+                myStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: laptopCam ? { deviceId: { exact: laptopCam.deviceId } } : true, 
+                    audio: true 
+                });
+                
+                document.getElementById('my-cam').srcObject = myStream;
+
+                peer.on('call', call => {
+                    call.answer(myStream);
+                    handleRemoteStream(call);
+                });
+
+                socket.on('user-connected', id => {
+                    const call = peer.call(id, myStream);
+                    handleRemoteStream(call);
+                });
+            } catch (err) { console.log("Cam error", err); }
+        }
+
+        function toggleCam() {
+            const videoTrack = myStream.getVideoTracks()[0];
+            videoTrack.enabled = !videoTrack.enabled;
+            document.getElementById('cam-btn').innerText = videoTrack.enabled ? "📷 Camera On" : "📷 Camera Off";
+            document.getElementById('cam-btn').style.borderColor = videoTrack.enabled ? "#00ff88" : "#ff4444";
+        }
+
+        function toggleMic() {
+            const audioTrack = myStream.getAudioTracks()[0];
+            audioTrack.enabled = !audioTrack.enabled;
+            document.getElementById('mic-btn').innerText = audioTrack.enabled ? "🎤 Mic On" : "🎤 Mic Off";
+            document.getElementById('mic-btn').style.borderColor = audioTrack.enabled ? "#00ff88" : "#ff4444";
+        }
+
+        function handleRemoteStream(call) {
+            const vid = document.createElement('video');
+            vid.autoplay = true; vid.playsinline = true;
+            call.on('stream', s => { vid.srcObject = s; document.getElementById('friend-cams').append(vid); });
+        }
 
         peer.on('open', id => socket.emit('join-room', roomId, id));
 
-        // 2. Video Logic with Fallback
+        // 2. Movie Engine (Force Play/Pause Buttons)
         function launchFallback() {
             const container = document.getElementById('video-container');
             if (container.innerHTML.includes('iframe')) return; 
-            console.log("Switching to high-speed fallback player...");
             container.innerHTML = `<iframe src="https://vidsrc.me/embed/movie?imdb=${imdb}" allowfullscreen></iframe>`;
         }
 
@@ -74,7 +113,12 @@
             window.webtor.push({
                 id: 'video-container',
                 hash: hash,
+                features: {
+                    continue: false, // Prevents "Continue Watching" popup
+                    title: false     // We have our own title bar
+                },
                 onReady: (p) => {
+                    // This forces the controls to stay visible or use native browser controls
                     p.on('play', () => socket.emit('sync-event', { roomId, type: 'play', time: p.getCurrentTime() }));
                     p.on('pause', () => socket.emit('sync-event', { roomId, type: 'pause', time: p.getCurrentTime() }));
                     socket.on('apply-sync', (d) => {
@@ -86,11 +130,9 @@
             });
         }
 
-        // If nothing plays in 5 seconds, force the fallback
-        setTimeout(() => {
-            if (document.getElementById('loading-text')) launchFallback();
-        }, 5000);
-
+        setTimeout(() => { if (document.getElementById('loading-text')) launchFallback(); }, 6000);
+        
+        initCamera();
         startTheater();
     </script>
 </body>
