@@ -9,7 +9,7 @@ const crypto = require('crypto');
 const app = express();
 const server = http.createServer(app);
 
-// FIX 1: Open up CORS completely
+// Open CORS for streaming and signaling
 app.use(cors({ origin: "*" }));
 
 const io = new Server(server, { 
@@ -18,6 +18,7 @@ const io = new Server(server, {
 
 app.use(express.static(path.join(__dirname)));
 
+// Routes
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/player', (req, res) => res.sendFile(path.join(__dirname, 'player.html')));
@@ -35,30 +36,54 @@ app.get('/trending', async (req, res) => {
     } catch (e) { res.status(500).json({ error: "TMDB Failed" }); }
 });
 
-// FIX 2: Better stream fetching with Headers
+// Note: index.html is now fetching streams directly to bypass Render's IP block,
+// but we keep this here as a fallback.
 app.get('/streams/:id', async (req, res) => {
     try {
         const imdbId = req.params.id;
         const url = `https://torrentio.strem.fun/stream/movie/${imdbId}.json`;
-        
         const response = await axios.get(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            },
+            headers: { 'User-Agent': 'Mozilla/5.0' },
             timeout: 8000
         });
-        
         res.json(response.data.streams || []);
     } catch (e) {
-        console.error("Fetch Error:", e.message);
-        res.status(500).json({ error: "Torrentio blocked the request or timed out" });
+        res.status(500).json({ error: "Stream fetch failed" });
     }
 });
 
+// --- SOCKET LOGIC ---
 io.on('connection', (socket) => {
-    socket.on('join-room', (roomId) => socket.join(roomId));
-    socket.on('play-movie', (data) => io.to(data.roomId).emit('start-stream', data));
-    socket.on('sync-action', (data) => socket.to(data.roomId).emit('apply-sync', data));
+    console.log('User connected:', socket.id);
+
+    socket.on('join-room', (roomId) => {
+        socket.join(roomId);
+        console.log(`User ${socket.id} joined room: ${roomId}`);
+    });
+
+    socket.on('play-movie', (data) => {
+        // Tells everyone in the room to go to the player page
+        io.to(data.roomId).emit('start-stream', data);
+    });
+
+    socket.on('sync-action', (data) => {
+        // We use socket.to(roomId) so the person who clicked 'Play' 
+        // doesn't have their own video reset.
+        socket.to(data.roomId).emit('apply-sync', data);
+    });
+
+    // NEW: WebRTC Video Signaling
+    // This passes the camera data between users without the server "seeing" the video
+    socket.on('video-signal', (data) => {
+        socket.to(data.roomId).emit('video-signal-receive', {
+            signal: data.signal,
+            from: socket.id
+        });
+    });
+
+    socket.on('disconnect', () => {
+        console.log('User disconnected');
+    });
 });
 
 const PORT = process.env.PORT || 5001;

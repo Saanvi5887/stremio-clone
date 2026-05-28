@@ -1,46 +1,70 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Stremio Party - Playing</title>
+    <title>Stremio Party - Playing & Calling</title>
     <style>
         body { background: #000; margin: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; color: white; overflow: hidden; }
         #video-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; background: #000; position: relative; }
         iframe { width: 100%; height: 100%; border: none; }
+        
+        /* Video Call Styling */
+        #remote-video { position: absolute; top: 20px; right: 20px; width: 240px; height: 180px; background: #222; border: 2px solid #00ff88; border-radius: 10px; object-fit: cover; z-index: 100; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        #local-video { position: absolute; top: 20px; right: 270px; width: 120px; height: 90px; background: #111; border: 1px solid #555; border-radius: 5px; object-fit: cover; z-index: 100; }
+        
         .footer { padding: 15px 30px; background: #111; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #333; }
-        .back-btn { background: #00ff88; color: black; padding: 10px 20px; border-radius: 20px; text-decoration: none; font-weight: bold; transition: 0.2s; }
-        .server-btn { background: #222; color: #ccc; padding: 8px 15px; border-radius: 5px; border: 1px solid #444; cursor: pointer; margin-left: 10px; font-size: 0.8rem; transition: 0.3s; }
-        .server-btn:hover { background: #333; border-color: #00ff88; }
+        .back-btn { background: #ff4444; color: white; padding: 10px 20px; border-radius: 20px; text-decoration: none; font-weight: bold; transition: 0.2s; }
+        .server-btn { background: #222; color: #ccc; padding: 8px 15px; border-radius: 5px; border: 1px solid #444; cursor: pointer; margin-left: 5px; font-size: 0.8rem; transition: 0.3s; }
         .server-btn.active { border-color: #00ff88; color: #00ff88; background: #0a251a; }
         .room-badge { background: #1a1a1a; padding: 5px 15px; border-radius: 15px; font-size: 0.8rem; color: #00ff88; border: 1px solid #00ff88; }
+        
+        .control-group { display: flex; align-items: center; gap: 10px; }
     </style>
 </head>
 <body>
     <div id="video-container">
         <iframe id="movie-frame" src="" allowfullscreen allow="autoplay"></iframe>
+        <video id="remote-video" autoplay playsinline></video>
+        <video id="local-video" autoplay playsinline muted></video>
     </div>
     
     <div class="footer">
         <div id="movie-info">
             <h2 id="movie-title" style="margin:0; font-size: 1.1rem;">Loading...</h2>
-            <div style="margin-top: 8px; display: flex; align-items: center;">
+            <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
                 <span id="room-display"></span>
-                <div id="server-list" style="margin-left: 20px;">
-                    <button class="server-btn active" onclick="changeServer('vidsrc.pro', this)">Server 1</button>
-                    <button class="server-btn" onclick="changeServer('vidsrc.to', this)">Server 2</button>
-                    <button class="server-btn" onclick="changeServer('superembed', this)">Server 3</button>
+                
+                <div class="control-group" style="border-left: 1px solid #333; padding-left: 15px;">
+                    <button class="server-btn" style="background: #00ff88; color: black;" onclick="emitSync('play')">▶ Sync Play</button>
+                    <button class="server-btn" onclick="emitSync('pause')">⏸ Sync Pause</button>
+                </div>
+
+                <div class="control-group" style="border-left: 1px solid #333; padding-left: 15px;">
+                    <button class="server-btn" id="call-btn" onclick="startCall()">🎥 Start Call</button>
+                    <button class="server-btn" id="mic-btn" onclick="toggleMic()" style="display:none;">🎤 Mic On</button>
                 </div>
             </div>
         </div>
-        <a href="/" class="back-btn">Exit Theater</a>
+
+        <div class="control-group">
+            <div id="server-list">
+                <button class="server-btn active" onclick="changeServer('vidsrc.pro', this)">S1</button>
+                <button class="server-btn" onclick="changeServer('vidsrc.to', this)">S2</button>
+            </div>
+            <a href="/" class="back-btn">Exit</a>
+        </div>
     </div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/simple-peer/9.11.1/simplepeer.min.js"></script>
     <script>
         const socket = io();
         const params = new URLSearchParams(window.location.search);
         const title = params.get('title');
         const imdbId = params.get('imdb');
         const roomId = params.get('room');
+
+        let localStream;
+        let peer;
 
         document.getElementById('movie-title').innerText = title || "Now Playing";
         
@@ -49,36 +73,81 @@
             socket.emit('join-room', roomId);
         }
 
+        // --- 1. SERVER & SYNC LOGIC ---
         function changeServer(provider, btn) {
             const frame = document.getElementById('movie-frame');
-            
-            // UI Cleanup
             document.querySelectorAll('.server-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
-            // Switch Sources
-            if (provider === 'vidsrc.pro') {
-                frame.src = `https://vidsrc.pro/embed/movie/${imdbId}`;
-            } else if (provider === 'vidsrc.to') {
-                frame.src = `https://vidsrc.to/embed/movie/${imdbId}`;
-            } else {
-                frame.src = `https://multiembed.mov/?video_id=${imdbId}&tmdb=0`;
-            }
+            if (provider === 'vidsrc.pro') frame.src = `https://vidsrc.pro/embed/movie/${imdbId}`;
+            else if (provider === 'vidsrc.to') frame.src = `https://vidsrc.to/embed/movie/${imdbId}`;
+            else frame.src = `https://multiembed.mov/?video_id=${imdbId}&tmdb=0`;
         }
 
-        // Auto-load Server 1
-        if (imdbId) {
-            changeServer('vidsrc.pro', document.querySelector('.server-btn'));
-        } else {
-            alert("Error: No IMDB ID found in URL");
+        function emitSync(action) {
+            socket.emit('sync-action', { roomId: roomId, type: action });
         }
 
-        // Stay Synced
-        socket.on('start-stream', (data) => {
-            if (data.imdb !== imdbId) {
-                window.location.href = `/player?imdb=${data.imdb}&title=${encodeURIComponent(data.title)}&room=${roomId}`;
+        socket.on('apply-sync', (data) => {
+            const frame = document.getElementById('movie-frame');
+            if (data.type === 'pause') {
+                frame.setAttribute('data-src', frame.src);
+                frame.src = ""; // Stops the iframe
+            } else if (data.type === 'play') {
+                const savedSrc = frame.getAttribute('data-src');
+                frame.src = savedSrc || frame.src;
             }
         });
+
+        // --- 2. VIDEO CALL LOGIC (WebRTC) ---
+        async function startCall() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('local-video').srcObject = localStream;
+                document.getElementById('mic-btn').style.display = 'inline-block';
+                document.getElementById('call-btn').innerText = "📞 In Call";
+
+                // Initiator Peer
+                initPeer(true);
+            } catch (err) {
+                alert("Camera access denied. Please use HTTPS.");
+            }
+        }
+
+        function initPeer(initiator) {
+            peer = new SimplePeer({ initiator: initiator, trickle: false, stream: localStream });
+
+            peer.on('signal', data => {
+                socket.emit('video-signal', { signal: data, roomId: roomId });
+            });
+
+            peer.on('stream', stream => {
+                document.getElementById('remote-video').srcObject = stream;
+            });
+        }
+
+        socket.on('video-signal-receive', data => {
+            if (!peer) {
+                // If the other person started the call, we become the receiver
+                navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+                    localStream = stream;
+                    document.getElementById('local-video').srcObject = stream;
+                    initPeer(false);
+                    peer.signal(data.signal);
+                });
+            } else {
+                peer.signal(data.signal);
+            }
+        });
+
+        function toggleMic() {
+            const audioTrack = localStream.getAudioTracks()[0];
+            audioTrack.enabled = !audioTrack.enabled;
+            document.getElementById('mic-btn').innerText = audioTrack.enabled ? "🎤 Mic On" : "🔇 Mic Off";
+        }
+
+        // Load Default
+        if (imdbId) changeServer('vidsrc.pro', document.querySelector('.server-btn'));
     </script>
 </body>
 </html>
