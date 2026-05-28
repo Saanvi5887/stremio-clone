@@ -2,130 +2,24 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Stremio Clone - Lobby</title>
+    <title>Stremio Party - Lobby</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
-        
-        body { 
-            background: radial-gradient(circle at top, #0a0f0d 0%, #050505 100%); 
-            color: #e0e0e0; 
-            font-family: 'Inter', sans-serif; 
-            padding: 40px; 
-            margin: 0; 
-            min-height: 100vh; 
-        }
-        
-        h1 { 
-            text-align: center; 
-            color: #00ff88; 
-            font-size: 3rem; 
-            text-transform: uppercase; 
-            letter-spacing: 8px; 
-            margin-bottom: 50px; 
-            text-shadow: 0 0 15px rgba(0, 255, 136, 0.3); 
-        }
-        
-        .controls-container { 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            gap: 20px; 
-            margin-bottom: 40px; 
-        }
-        
-        .input-group { 
-            background: rgba(255, 255, 255, 0.05); 
-            padding: 25px; 
-            border-radius: 15px; 
-            border: 1px solid #333; 
-            width: 100%; 
-            max-width: 600px; 
-            text-align: center; 
-        }
-        
-        input { 
-            background: rgba(0, 0, 0, 0.3); 
-            border: 1px solid #444; 
-            color: white; 
-            padding: 12px 20px; 
-            border-radius: 30px; 
-            outline: none; 
-            width: 180px; 
-            margin-bottom: 10px;
-        }
-        
-        button { 
-            padding: 12px 25px; 
-            border-radius: 30px; 
-            border: none; 
-            cursor: pointer; 
-            font-weight: bold; 
-            background: #00ff88; 
-            color: black; 
-            transition: 0.2s; 
-            margin: 5px;
-        }
-        
-        button:hover { 
-            background: #00cc6e; 
-            transform: scale(1.05); 
-        }
-
-        .btn-secondary {
-            background: #333;
-            color: white;
-        }
-
-        .grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); 
-            gap: 35px; 
-        }
-        
-        .card { 
-            background: rgba(255, 255, 255, 0.03); 
-            border: 1px solid rgba(255, 255, 255, 0.1); 
-            border-radius: 20px; 
-            overflow: hidden; 
-            cursor: pointer; 
-            transition: 0.3s; 
-        }
-        
-        .card:hover { 
-            transform: translateY(-10px); 
-            border-color: #00ff88; 
-        }
-        
+        body { background: radial-gradient(circle at top, #0a0f0d 0%, #050505 100%); color: #e0e0e0; font-family: 'Inter', sans-serif; padding: 40px; margin: 0; min-height: 100vh; }
+        h1 { text-align: center; color: #00ff88; font-size: 3rem; text-transform: uppercase; letter-spacing: 8px; margin-bottom: 50px; text-shadow: 0 0 15px rgba(0, 255, 136, 0.3); }
+        .controls-container { display: flex; flex-direction: column; align-items: center; gap: 20px; margin-bottom: 40px; }
+        .input-group { background: rgba(255, 255, 255, 0.05); padding: 25px; border-radius: 15px; border: 1px solid #333; width: 100%; max-width: 600px; text-align: center; }
+        input { background: rgba(0, 0, 0, 0.3); border: 1px solid #444; color: white; padding: 12px 20px; border-radius: 30px; outline: none; width: 180px; margin-bottom: 10px; }
+        button { padding: 12px 25px; border-radius: 30px; border: none; cursor: pointer; font-weight: bold; background: #00ff88; color: black; transition: 0.2s; margin: 5px; }
+        button:hover { background: #00cc6e; transform: scale(1.05); }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 35px; }
+        .card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; overflow: hidden; cursor: pointer; transition: 0.3s; }
+        .card:hover { transform: translateY(-10px); border-color: #00ff88; }
         .card img { width: 100%; height: 300px; object-fit: cover; }
         .card h3 { padding: 15px; font-size: 0.9rem; text-align: center; color: #fff; margin: 0; }
-
-        #stream-modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-        .modal-content {
-            background: #111;
-            padding: 30px;
-            border-radius: 20px;
-            width: 90%;
-            max-width: 500px;
-            border: 1px solid #00ff88;
-            text-align: center;
-        }
-        .stream-item {
-            background: #222;
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: 0.2s;
-            text-align: left;
-        }
+        #stream-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: #111; padding: 30px; border-radius: 20px; width: 90%; max-width: 500px; border: 1px solid #00ff88; text-align: center; }
+        .stream-item { background: #222; padding: 15px; margin: 10px 0; border-radius: 10px; cursor: pointer; transition: 0.2s; text-align: left; }
         .stream-item:hover { background: #00ff88; color: #000; }
         .loading-text { color: #00ff88; font-weight: bold; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
@@ -133,17 +27,15 @@
 </head>
 <body>
     <h1>STREMIO PARTY</h1>
-    
     <div class="controls-container">
         <div class="input-group">
             <input type="text" id="room-input" placeholder="Enter Room ID">
             <button onclick="joinRoom()">Join Room</button>
-            <button class="btn-secondary" onclick="createPrivateRoom()">Create New Room</button>
+            <button onclick="createPrivateRoom()" style="background:#333; color:white;">Create Room</button>
             <p id="room-status" style="font-size: 0.8rem; color: #888; margin-top: 10px;">Not in a room</p>
         </div>
     </div>
-
-    <div id="movie-grid" class="grid">Loading trending titles...</div>
+    <div id="movie-grid" class="grid">Loading trending...</div>
 
     <div id="stream-modal">
         <div class="modal-content">
@@ -158,123 +50,77 @@
         const socket = io();
         let currentRoom = null;
 
-        // 1. Room Management
         function joinRoom() {
             const inputVal = document.getElementById('room-input').value.trim();
-            if (!inputVal) return alert("Please enter a Room ID");
+            if (!inputVal) return alert("Enter Room ID");
             currentRoom = inputVal;
             socket.emit('join-room', currentRoom);
-            document.getElementById('room-status').innerText = "Connected to Room: " + currentRoom;
+            document.getElementById('room-status').innerText = "Connected: " + currentRoom;
             document.getElementById('room-status').style.color = "#00ff88";
         }
 
         async function createPrivateRoom() {
-            try {
-                const res = await fetch('/generate-room');
-                const data = await res.json();
-                document.getElementById('room-input').value = data.roomId;
-                joinRoom();
-            } catch (err) { alert("Server connection failed."); }
+            const res = await fetch('/generate-room');
+            const data = await res.json();
+            document.getElementById('room-input').value = data.roomId;
+            joinRoom();
         }
 
-        // 2. Movie Loading
         async function loadMovies() {
-            try {
-                const res = await fetch('/trending');
-                const movies = await res.json();
-                const grid = document.getElementById('movie-grid');
-                grid.innerHTML = '';
-                movies.forEach(m => {
-                    const card = document.createElement('div');
-                    card.className = 'card';
-                    card.onclick = () => fetchStreams(m.id, m.title);
-                    card.innerHTML = `<img src="https://image.tmdb.org/t/p/w500${m.poster_path}"><h3>${m.title}</h3>`;
-                    grid.appendChild(card);
-                });
-            } catch (e) { document.getElementById('movie-grid').innerHTML = "Error loading movies."; }
+            const res = await fetch('/trending');
+            const movies = await res.json();
+            const grid = document.getElementById('movie-grid');
+            grid.innerHTML = '';
+            movies.forEach(m => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.onclick = () => fetchStreams(m.id, m.title);
+                card.innerHTML = `<img src="https://image.tmdb.org/t/p/w500${m.poster_path}"><h3>${m.title}</h3>`;
+                grid.appendChild(card);
+            });
         }
 
-        // 3. Stream Fetching & Sync Emission
-        // 3. Stream Fetching & Sync Emission
         async function fetchStreams(tmdbId, title) {
             if (!currentRoom) return alert("Join a room first!");
-            
             document.getElementById('stream-modal').style.display = 'flex';
             const list = document.getElementById('stream-list');
-            list.innerHTML = "<div class='loading-text'>Finding high-quality links...</div>";
-            
-            let currentImdbId = null;
+            list.innerHTML = "<div class='loading-text'>Fetching streams...</div>";
 
             try {
-                // Get IMDB ID from TMDB
+                // Step 1: Get IMDB ID directly from user's browser
                 const tmdbRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=d800759469a13ad76fd7f48830a046a8`);
                 const movieData = await tmdbRes.json();
-                currentImdbId = movieData.imdb_id;
+                const imdbId = movieData.imdb_id;
 
-                if (!currentImdbId) throw new Error("No IMDB ID found");
-
-                // Get Torrent Streams
-                const streamRes = await fetch(`https://torrentio.strem.fun/stream/movie/${currentImdbId}.json`);
+                // Step 2: Get Streams directly from user's browser (Bypasses Render Block)
+                const streamRes = await fetch(`https://torrentio.strem.fun/stream/movie/${imdbId}.json`);
                 const data = await streamRes.json();
-                const streams = data.streams;
-
-                if (!streams || streams.length === 0) {
-                    list.innerHTML = "❌ No active streams found.";
-                    return;
-                }
-
+                
                 list.innerHTML = '';
-                streams.slice(0, 8).forEach(s => {
+                data.streams.slice(0, 10).forEach(s => {
                     const item = document.createElement('div');
                     item.className = 'stream-item';
-                    
-                    // Identify quality for the label
-                    const quality = s.title.includes('1080') ? '1080p' : (s.title.includes('720') ? '720p' : 'SD');
-                    item.innerHTML = `<strong>${s.name} [${quality}]</strong><br><small>${s.title.split('\n')[0]}</small>`;
-                    
-                    // FIXED ONCLICK: Explicitly passing the infoHash
-                    item.onclick = function() {
-                        const streamData = { 
+                    item.innerHTML = `<strong>${s.name}</strong><br><small>${s.title.split('\n')[0]}</small>`;
+                    item.onclick = () => {
+                        socket.emit('play-movie', { 
                             roomId: currentRoom, 
-                            infoHash: s.infoHash, // This was likely undefined before
+                            infoHash: s.infoHash, 
                             title: title,
-                            imdb: currentImdbId 
-                        };
-                        console.log("Selected Stream Hash:", s.infoHash);
-                        socket.emit('play-movie', streamData);
+                            imdb: imdbId 
+                        });
                     };
                     list.appendChild(item);
                 });
-
             } catch (e) {
-                console.error(e);
-                list.innerHTML = `<div style="color: #ff4444;">Error fetching links. Try again.</div>`;
+                list.innerHTML = "❌ Connection failed. Check internet.";
             }
         }
 
-        // 4. Global Redirect Listener
         socket.on('start-stream', (data) => {
-            console.log("Sync initiated. Moving to Theater...");
-            // Use URLSearchParams for clean encoding
-            const params = new URLSearchParams({
-                hash: data.infoHash,
-                title: data.title,
-                room: data.roomId,
-                imdb: data.imdb
-            });
-            window.location.href = `/player?${params.toString()}`;
-        });
-
-        // 4. Global Redirect Listener
-        socket.on('start-stream', (data) => {
-            console.log("Sync initiated. Moving to Theater...");
-            // CRITICAL: We pass the hash, title, room, and imdb so the player can sync
-            const targetUrl = `/player?hash=${data.infoHash}&title=${encodeURIComponent(data.title)}&room=${data.roomId}&imdb=${data.imdb}`;
-            window.location.href = targetUrl;
+            window.location.href = `/player?hash=${data.infoHash}&title=${encodeURIComponent(data.title)}&room=${data.roomId}&imdb=${data.imdb}`;
         });
 
         function closeModal() { document.getElementById('stream-modal').style.display = 'none'; }
-        
         loadMovies();
     </script>
 </body>
