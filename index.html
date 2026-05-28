@@ -99,7 +99,6 @@
         .card img { width: 100%; height: 300px; object-fit: cover; }
         .card h3 { padding: 15px; font-size: 0.9rem; text-align: center; color: #fff; margin: 0; }
 
-        /* Stream Modal */
         #stream-modal {
             display: none;
             position: fixed;
@@ -116,6 +115,7 @@
             width: 90%;
             max-width: 500px;
             border: 1px solid #00ff88;
+            text-align: center;
         }
         .stream-item {
             background: #222;
@@ -124,8 +124,11 @@
             border-radius: 10px;
             cursor: pointer;
             transition: 0.2s;
+            text-align: left;
         }
         .stream-item:hover { background: #00ff88; color: #000; }
+        .loading-text { color: #00ff88; font-weight: bold; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
     </style>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
@@ -141,7 +144,7 @@
         </div>
     </div>
 
-    <div id="movie-grid" class="grid">Loading real movies...</div>
+    <div id="movie-grid" class="grid">Loading trending titles...</div>
 
     <div id="stream-modal">
         <div class="modal-content">
@@ -155,21 +158,13 @@
         const socket = io();
         let currentRoom = null;
 
-        // Auto-join if user presses Enter in the input
-        document.getElementById('room-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') joinRoom();
-        });
-
         function joinRoom() {
             const inputVal = document.getElementById('room-input').value.trim();
             if (!inputVal) return alert("Please enter a Room ID");
-            
             currentRoom = inputVal;
             socket.emit('join-room', currentRoom);
-            
             document.getElementById('room-status').innerText = "Connected to Room: " + currentRoom;
             document.getElementById('room-status').style.color = "#00ff88";
-            console.log("Joined Room:", currentRoom);
         }
 
         async function createPrivateRoom() {
@@ -178,10 +173,7 @@
                 const data = await res.json();
                 document.getElementById('room-input').value = data.roomId;
                 joinRoom();
-                alert("New Room Created! Share this ID: " + data.roomId);
-            } catch (err) {
-                alert("Failed to create room. Is server running?");
-            }
+            } catch (err) { alert("Server connection failed."); }
         }
 
         async function loadMovies() {
@@ -197,72 +189,63 @@
                     card.innerHTML = `<img src="https://image.tmdb.org/t/p/w500${m.poster_path}"><h3>${m.title}</h3>`;
                     grid.appendChild(card);
                 });
+            } catch (e) { grid.innerHTML = "Error loading movies."; }
+        }
+
+        async function fetchStreams(tmdbId, title) {
+            if (!currentRoom) return alert("Join a room first!");
+            
+            document.getElementById('stream-modal').style.display = 'flex';
+            const list = document.getElementById('stream-list');
+            list.innerHTML = "<div class='loading-text'>Fetching streams for you...</div>";
+            
+            let imdbId = null; 
+
+            try {
+                // 1. Find IMDB ID
+                const tmdbRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=d800759469a13ad76fd7f48830a046a8`);
+                const movieData = await tmdbRes.json();
+                imdbId = movieData.imdb_id;
+
+                if (!imdbId) throw new Error("No IMDB ID found");
+
+                // 2. Fetch from your Render Backend
+                const streamRes = await fetch(`/streams/${imdbId}`);
+                const streams = await streamRes.json();
+
+                if (!streams || streams.length === 0) {
+                    list.innerHTML = "❌ No active streams found for this movie. Try a more popular title!";
+                    return;
+                }
+
+                list.innerHTML = '';
+                streams.slice(0, 10).forEach(s => {
+                    const item = document.createElement('div');
+                    item.className = 'stream-item';
+                    const quality = s.title.includes('1080') ? '1080p' : (s.title.includes('720') ? '720p' : 'SD');
+                    item.innerHTML = `<strong>${s.name} [${quality}]</strong><br><small>${s.title.split('\n')[0]}</small>`;
+                    
+                    item.onclick = () => {
+                        socket.emit('play-movie', { 
+                            roomId: currentRoom, 
+                            infoHash: s.infoHash, 
+                            title: title,
+                            imdb: imdbId 
+                        });
+                    };
+                    list.appendChild(item);
+                });
+
             } catch (e) {
-                document.getElementById('movie-grid').innerHTML = "Error loading movies. Check backend console.";
+                list.innerHTML = `
+                    <div style="color: #ff4444; margin-bottom:10px;">⚠️ Stream Fetch Failed</div>
+                    <p style="font-size: 0.8rem;">Torrentio is currently unreachable from the cloud server.</p>
+                    ${imdbId ? `<button onclick="window.open('https://torrentio.strem.fun/lite/movie/${imdbId}', '_blank')" style="background:#e02f2f; color:white;">Manual Link Lookup</button>` : ''}
+                `;
             }
         }
 
-  async function fetchStreams(tmdbId, title) {
-    if (!currentRoom) return alert("Join a room first!");
-    
-    document.getElementById('stream-modal').style.display = 'flex';
-    const list = document.getElementById('stream-list');
-    list.innerHTML = "<div class='loading'>Searching for quality streams...</div>";
-
-    try {
-        // 1. Get IMDB ID from TMDB
-        const tmdbUrl = `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=d800759469a13ad76fd7f48830a046a8`;
-        const tmdbRes = await fetch(tmdbUrl);
-        const movieData = await tmdbRes.json();
-        const imdbId = movieData.imdb_id;
-
-        if (!imdbId) {
-            list.innerHTML = "❌ No IMDB ID found for this title.";
-            return;
-        }
-
-        // 2. Fetch streams from YOUR server
-        const streamRes = await fetch(`/streams/${imdbId}`);
-        const streams = await streamRes.json();
-
-        if (!streams || streams.length === 0) {
-            list.innerHTML = "No streams found. Try another movie!";
-            return;
-        }
-
-        list.innerHTML = '';
-        streams.slice(0, 8).forEach(s => {
-            const item = document.createElement('div');
-            item.className = 'stream-item';
-            // Show quality info (1080p, 720p) if available in the title
-            const quality = s.title.includes('1080p') ? '1080p' : (s.title.includes('720p') ? '720p' : 'SD');
-            item.innerHTML = `<strong>${s.name} [${quality}]</strong><br><small>${s.title.split('\n')[0]}</small>`;
-            
-            item.onclick = () => {
-                socket.emit('play-movie', { 
-                    roomId: currentRoom, 
-                    infoHash: s.infoHash, 
-                    title: title,
-                    imdb: imdbId 
-                });
-            };
-            list.appendChild(item);
-        });
-    // Replace just the catch block in your fetchStreams function:
-    } catch (e) {
-        list.innerHTML = `
-            <div style="color: #ff4444;">⚠️ Cloud Connection Blocked</div>
-            <p style="font-size: 0.8rem;">Torrentio is blocking the cloud server.</p>
-            <button onclick="window.open('https://torrentio.strem.fun/lite/movie/${imdbId}', '_blank')" 
-                    style="background: #e02f2f; margin-top: 10px;">
-                Open Torrentio Lite
-            </button>
-        `;
-    }
-}
-
         socket.on('start-stream', (data) => {
-            // Send everyone to the player page with the same room ID
             window.location.href = `/player?hash=${data.infoHash}&title=${encodeURIComponent(data.title)}&room=${currentRoom}&imdb=${data.imdb}`;
         });
 
