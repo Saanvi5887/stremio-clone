@@ -3,140 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Party Sync Pro | Discover</title>
+    <title>Torrentio Party Sync</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root {
-            --bg-dark: #0f0f12;
-            --card-bg: rgba(255, 255, 255, 0.03);
-            --accent-soft: #b8c1ec;
-            --text-main: #eef1f5;
-            --text-dim: #a0a0a8;
+            --bg: #0f0f12;
+            --card: rgba(255, 255, 255, 0.04);
+            --accent: #b8c1ec;
+            --text-dim: #949cba;
         }
 
-        body {
-            margin: 0; background: var(--bg-dark); color: var(--text-main);
+        body { 
+            margin: 0; background: var(--bg); color: #fff;
             font-family: 'Inter', -apple-system, sans-serif;
-            display: flex; flex-direction: column; align-items: center;
-            min-height: 100vh; padding: 0;
+            display: flex; flex-direction: column; align-items: center; padding: 40px 20px;
         }
 
-        /* TOP NAV BAR */
-        nav {
-            width: 100%; padding: 20px 50px; box-sizing: border-box;
-            display: flex; justify-content: space-between; align-items: center;
-            backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.05);
-            position: sticky; top: 0; z-index: 100; background: rgba(15, 15, 18, 0.8);
-        }
-        .logo { font-size: 20px; font-weight: 800; letter-spacing: -1px; color: var(--accent-soft); }
+        .header { text-align: center; margin-bottom: 30px; }
+        h1 { font-size: 28px; letter-spacing: -1px; margin-bottom: 20px; }
 
-        .search-wrapper {
-            display: flex; background: rgba(255,255,255,0.05);
-            padding: 5px 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
-            width: 400px; transition: 0.3s;
+        /* SEARCH BAR */
+        .search-area {
+            display: flex; background: var(--card); border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1); width: 100%; max-width: 500px;
+            padding: 5px 15px; margin-bottom: 40px;
         }
-        .search-wrapper:focus-within { border-color: var(--accent-soft); background: rgba(255,255,255,0.08); }
-        .search-wrapper input {
-            background: transparent; border: none; padding: 10px; color: #fff;
-            width: 100%; outline: none; font-size: 14px;
-        }
-        .search-wrapper i { align-self: center; color: var(--text-dim); }
+        input { flex: 1; background: transparent; border: none; padding: 12px; color: #fff; outline: none; }
+        .btn { background: var(--accent); color: #232946; border: none; padding: 10px 20px; border-radius: 12px; font-weight: 700; cursor: pointer; }
 
-        /* HERO / RESULTS SECTION */
-        .content { width: 100%; max-width: 1200px; padding: 40px 20px; box-sizing: border-box; }
-        .section-title { font-size: 24px; font-weight: 700; margin-bottom: 30px; letter-spacing: -0.5px; }
-
-        .results-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 30px;
+        /* LINK SELECTION GRID */
+        .stream-grid { width: 100%; max-width: 900px; display: grid; gap: 15px; }
+        .stream-item {
+            background: var(--card); border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 14px; padding: 18px; display: flex; 
+            justify-content: space-between; align-items: center;
+            cursor: pointer; transition: 0.3s;
         }
-
-        .movie-card {
-            background: var(--card-bg); border-radius: 18px; overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.05); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            cursor: pointer; position: relative;
-        }
-        .movie-card:hover {
-            transform: scale(1.05); border-color: var(--accent-soft);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-        }
-
-        .poster { width: 100%; aspect-ratio: 2/3; object-fit: cover; background: #1a1a1f; }
+        .stream-item:hover { border-color: var(--accent); background: rgba(255,255,255,0.08); transform: translateY(-2px); }
         
-        .movie-info { padding: 15px; background: linear-gradient(to top, rgba(0,0,0,0.9), transparent); position: absolute; bottom: 0; width: 100%; box-sizing: border-box; }
-        .movie-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .movie-meta { font-size: 11px; color: var(--accent-soft); margin-top: 4px; }
+        .title-part { font-weight: 600; color: var(--accent); font-size: 15px; margin-bottom: 4px; }
+        .detail-part { font-size: 12px; color: var(--text-dim); line-height: 1.4; }
+        
+        .quality-badge {
+            background: rgba(184, 193, 236, 0.1); color: var(--accent);
+            padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 12px;
+            min-width: 60px; text-align: center;
+        }
 
-        #loader { display: none; text-align: center; padding: 50px; font-size: 30px; color: var(--accent-soft); }
+        #status { margin-top: 20px; color: var(--text-dim); font-size: 14px; }
     </style>
 </head>
 <body>
 
-    <nav>
-        <div class="logo">PARTY SYNC PRO</div>
-        <div class="search-wrapper">
-            <i class="fas fa-search"></i>
-            <input type="text" id="movieSearch" placeholder="Search for a movie..." onkeyup="if(event.key==='Enter') search()">
+    <div class="header">
+        <h1>Party Sync Pro</h1>
+        <div class="search-area">
+            <input type="text" id="imdbInput" placeholder="Enter IMDB ID (e.g. tt12042730)">
+            <button class="btn" onclick="loadTorrentio()">Explore Links</button>
         </div>
-        <div style="width: 100px;"></div> </nav>
-
-    <div class="content">
-        <h2 id="view-title" class="section-title">Trending Movies</h2>
-        <div id="loader"><i class="fas fa-spinner fa-spin"></i></div>
-        <div class="results-grid" id="grid">
-            </div>
+        <p id="status">Ready to fetch streams from Torrentio Addon...</p>
     </div>
 
+    <div class="stream-grid" id="streamContainer"></div>
+
     <script>
-        const grid = document.getElementById('grid');
-        const loader = document.getElementById('loader');
+        async function loadTorrentio() {
+            const imdb = document.getElementById('imdbInput').value.trim();
+            const container = document.getElementById('streamContainer');
+            const status = document.getElementById('status');
 
-        async function fetchTrending() {
-            loader.style.display = 'block';
+            if (!imdb.startsWith('tt')) {
+                status.innerText = "❌ Please enter a valid IMDB ID.";
+                return;
+            }
+
+            status.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching Addon Data...';
+            container.innerHTML = '';
+
             try {
-                const res = await fetch('https://v3-cinemeta.strem.io/catalog/movie/top.json');
-                const data = await res.json();
-                renderMovies(data.metas);
-            } catch (e) { console.error(e); }
-        }
+                // This talks directly to the Torrentio Addon Server
+                const response = await fetch(`https://torrentio.strem.io/stream/movie/${imdb}.json`);
+                const data = await response.json();
 
-        async function search() {
-            const query = document.getElementById('movieSearch').value;
-            if(!query) return;
-            grid.innerHTML = '';
-            loader.style.display = 'block';
-            document.getElementById('view-title').innerText = `Results for "${query}"`;
-            
-            try {
-                const res = await fetch(`https://v3-cinemeta.strem.io/catalog/movie/top/search=${query}.json`);
-                const data = await res.json();
-                renderMovies(data.metas);
-            } catch (e) { grid.innerHTML = 'No movies found.'; }
-        }
+                if (!data.streams || data.streams.length === 0) {
+                    status.innerText = "No streams found for this content.";
+                    return;
+                }
 
-        function renderMovies(movies) {
-            loader.style.display = 'none';
-            grid.innerHTML = '';
-            movies.forEach(m => {
-                const card = document.createElement('div');
-                card.className = 'movie-card';
-                card.onclick = () => {
-                    const room = Math.random().toString(36).substring(7);
-                    window.location.href = `/player.html?room=${room}&imdb=${m.imdb_id}&title=${encodeURIComponent(m.name)}`;
-                };
-                card.innerHTML = `
-                    <img class="poster" src="${m.poster}" onerror="this.src='https://via.placeholder.com/200x300?text=No+Poster'">
-                    <div class="movie-info">
-                        <div class="movie-title">${m.name}</div>
-                        <div class="movie-meta">${m.year || ''}</div>
-                    </div>
-                `;
-                grid.appendChild(card);
-            });
-        }
+                status.innerText = `Found ${data.streams.length} links for ${imdb}`;
 
-        fetchTrending(); // Initial load
+                data.streams.forEach(stream => {
+                    const div = document.createElement('div');
+                    div.className = 'stream-item';
+                    
+                    // Parsing Torrentio's multi-line title data
+                    const lines = stream.title.split('\n');
+                    const mainTitle = lines[0];
+                    const metadata = lines.slice(1).join(' | ');
+
+                    div.onclick = () => {
+                        const room = Math.random().toString(36).substring(7);
+                        // Send the actual stream link to our player
+                        window.location.href = `/player.html?room=${room}&videoUrl=${encodeURIComponent(stream.url)}&title=${encodeURIComponent(mainTitle)}`;
+                    };
+
+                    div.innerHTML = `
+                        <div style="flex: 1; padding-right: 20px;">
+                            <div class="title-part">${mainTitle}</div>
+                            <div class="detail-part">${metadata}</div>
+                        </div>
+                        <div class="quality-badge">${stream.name}</div>
+                    `;
+                    container.appendChild(div);
+                });
+            } catch (e) {
+                status.innerText = "❌ Error connecting to Torrentio. Check your connection.";
+            }
+        }
     </script>
 </body>
 </html>
