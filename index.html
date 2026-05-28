@@ -248,8 +248,16 @@
             };
             list.appendChild(item);
         });
+    // Replace just the catch block in your fetchStreams function:
     } catch (e) {
-        list.innerHTML = "⚠️ Connection Error. The server might be waking up—try again in 5 seconds.";
+        list.innerHTML = `
+            <div style="color: #ff4444;">⚠️ Cloud Connection Blocked</div>
+            <p style="font-size: 0.8rem;">Torrentio is blocking the cloud server.</p>
+            <button onclick="window.open('https://torrentio.strem.fun/lite/movie/${imdbId}', '_blank')" 
+                    style="background: #e02f2f; margin-top: 10px;">
+                Open Torrentio Lite
+            </button>
+        `;
     }
 }
 
