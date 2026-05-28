@@ -1,19 +1,19 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Party Sync Pro | Native</title>
+    <title>Party Sync Pro</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { margin:0; background:#000; color:#fff; font-family:sans-serif; display:flex; height:100vh; overflow:hidden; }
-        #theater { flex: 1; position: relative; background: #000; display: flex; flex-direction: column; }
-        
-        /* NATIVE VIDEO TAG - UNBLOCKABLE */
-        video#main-movie { width: 100%; height: 80vh; background: #111; }
+        #theater { flex: 1; position: relative; display: flex; flex-direction: column; background: #000; }
+        #video-container { flex: 1; position: relative; }
+        iframe { width: 100%; height: 100%; border: none; position: absolute; top: 0; left: 0; }
         
         .controls { 
-            padding: 20px; background: #0a0a0a; display: flex; 
+            background: #0a0a0a; padding: 15px; display: flex; 
             justify-content: center; gap: 20px; border-top: 2px solid #00ff88;
+            z-index: 100;
         }
         
         #sidebar { width: 260px; background: #050505; border-left: 1px solid #333; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
@@ -21,19 +21,19 @@
         .tag { font-size: 10px; color: #00ff88; font-weight: bold; }
         
         button { background: #1a1a1a; border: 1px solid #444; color: white; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        button:hover { border-color: #00ff88; }
+        button:hover { border-color: #00ff88; color: #00ff88; }
     </style>
 </head>
 <body>
     <div id="theater">
-        <video id="main-movie" controls crossorigin="anonymous">
-            <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4">
-        </video>
+        <div id="video-container">
+            <iframe id="player-frame" src="" allowfullscreen allow="autoplay"></iframe>
+        </div>
 
         <div class="controls">
-            <button onclick="syncAll()" style="background:#00ff88; color:#000; border:none;">⚡ SYNC EVERYONE TO ME</button>
+            <button onclick="syncAll()" style="background:#00ff88; color:#000; border:none;">⚡ REFRESH SYNC</button>
             <button onclick="toggleCam()">📷 TOGGLE CAM</button>
-            <button onclick="window.location.href='/'" style="color:#ff4444">EXIT PARTY</button>
+            <button onclick="window.location.href='/'" style="color:red">EXIT</button>
         </div>
     </div>
 
@@ -47,12 +47,17 @@
     <script>
         const params = new URLSearchParams(window.location.search);
         const roomId = params.get('room');
+        const imdb = params.get('imdb');
         const socket = io();
         const peer = new Peer();
-        const movie = document.getElementById('main-movie');
+        const frame = document.getElementById('player-frame');
         let myStream;
 
-        // 1. CAMERAS (Confirming they stay working in the sidebar)
+        // Set the movie source
+        if (imdb) {
+            frame.src = `https://vidsrc.xyz/embed/movie/${imdb}`;
+        }
+
         async function initCams() {
             try {
                 myStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
@@ -76,20 +81,16 @@
             }, 1000);
         });
 
-        // 2. REAL SYNC (Works because we are not inside an iframe)
+        // Forced Refresh Sync (Best for iframes)
         function syncAll() {
-            socket.emit('sync-event', { 
-                roomId, 
-                time: movie.currentTime, 
-                state: movie.paused ? 'pause' : 'play',
-                type: 'master-sync' 
-            });
+            socket.emit('sync-event', { roomId, type: 'force-refresh' });
         }
 
         socket.on('apply-sync', d => {
-            if(d.type === 'master-sync') {
-                movie.currentTime = d.time;
-                d.state === 'play' ? movie.play() : movie.pause();
+            if(d.type === 'force-refresh') {
+                const current = frame.src;
+                frame.src = '';
+                frame.src = current;
             }
         });
 
