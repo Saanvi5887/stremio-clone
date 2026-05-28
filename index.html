@@ -35,11 +35,11 @@
         
         .input-group { 
             background: rgba(255, 255, 255, 0.05); 
-            padding: 20px; 
+            padding: 25px; 
             border-radius: 15px; 
             border: 1px solid #333; 
             width: 100%; 
-            max-width: 500px; 
+            max-width: 600px; 
             text-align: center; 
         }
         
@@ -50,8 +50,8 @@
             padding: 12px 20px; 
             border-radius: 30px; 
             outline: none; 
-            width: 200px; 
-            margin-right: 10px;
+            width: 180px; 
+            margin-bottom: 10px;
         }
         
         button { 
@@ -63,11 +63,17 @@
             background: #00ff88; 
             color: black; 
             transition: 0.2s; 
+            margin: 5px;
         }
         
         button:hover { 
             background: #00cc6e; 
             transform: scale(1.05); 
+        }
+
+        .btn-secondary {
+            background: #333;
+            color: white;
         }
 
         .grid { 
@@ -129,7 +135,8 @@
     <div class="controls-container">
         <div class="input-group">
             <input type="text" id="room-input" placeholder="Enter Room ID">
-            <button onclick="createPrivateRoom()">Create Private Room</button>
+            <button onclick="joinRoom()">Join Room</button>
+            <button class="btn-secondary" onclick="createPrivateRoom()">Create New Room</button>
             <p id="room-status" style="font-size: 0.8rem; color: #888; margin-top: 10px;">Not in a room</p>
         </div>
     </div>
@@ -148,12 +155,33 @@
         const socket = io();
         let currentRoom = null;
 
+        // Auto-join if user presses Enter in the input
+        document.getElementById('room-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') joinRoom();
+        });
+
         function joinRoom() {
-            currentRoom = document.getElementById('room-input').value.trim();
-            if (!currentRoom) return alert("Enter Room ID");
+            const inputVal = document.getElementById('room-input').value.trim();
+            if (!inputVal) return alert("Please enter a Room ID");
+            
+            currentRoom = inputVal;
             socket.emit('join-room', currentRoom);
-            document.getElementById('room-status').innerText = "Connected to: " + currentRoom;
+            
+            document.getElementById('room-status').innerText = "Connected to Room: " + currentRoom;
             document.getElementById('room-status').style.color = "#00ff88";
+            console.log("Joined Room:", currentRoom);
+        }
+
+        async function createPrivateRoom() {
+            try {
+                const res = await fetch('/generate-room');
+                const data = await res.json();
+                document.getElementById('room-input').value = data.roomId;
+                joinRoom();
+                alert("New Room Created! Share this ID: " + data.roomId);
+            } catch (err) {
+                alert("Failed to create room. Is server running?");
+            }
         }
 
         async function loadMovies() {
@@ -175,12 +203,13 @@
         }
 
         async function fetchStreams(tmdbId, title) {
+            if (!currentRoom) return alert("You must Join or Create a room first!");
+            
             document.getElementById('stream-modal').style.display = 'flex';
             const list = document.getElementById('stream-list');
             list.innerHTML = "Searching Torrentio...";
 
             try {
-                // Get IMDB ID first
                 const tmdbRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=d800759469a13ad76fd7f48830a046a8`);
                 const data = await tmdbRes.json();
                 const imdbId = data.imdb_id;
@@ -189,12 +218,16 @@
                 const streams = await streamRes.json();
                 
                 list.innerHTML = '';
+                if(streams.length === 0) {
+                    list.innerHTML = "No streams found for this movie.";
+                    return;
+                }
+
                 streams.slice(0, 5).forEach(s => {
                     const item = document.createElement('div');
                     item.className = 'stream-item';
                     item.innerHTML = `<strong>${s.name}</strong><br><small>${s.title.split('\n')[0]}</small>`;
                     item.onclick = () => {
-                        if (!currentRoom) return alert("Join a room first!");
                         socket.emit('play-movie', { 
                             roomId: currentRoom, 
                             infoHash: s.infoHash, 
@@ -208,21 +241,13 @@
         }
 
         socket.on('start-stream', (data) => {
-            // Send everyone to the player page
+            // Send everyone to the player page with the same room ID
             window.location.href = `/player?hash=${data.infoHash}&title=${encodeURIComponent(data.title)}&room=${currentRoom}&imdb=${data.imdb}`;
         });
 
         function closeModal() { document.getElementById('stream-modal').style.display = 'none'; }
         
         loadMovies();
-
-        // Add this function inside your <script> in index.html
-async function createPrivateRoom() {
-    const res = await fetch('/generate-room');
-    const data = await res.json();
-    document.getElementById('room-input').value = data.roomId;
-    joinRoom();
-}
     </script>
 </body>
 </html>
