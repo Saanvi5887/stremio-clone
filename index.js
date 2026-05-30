@@ -1,22 +1,33 @@
 const express = require('express');
 const axios = require('axios');
 const path = require('path');
+const cors = require('cors');
 const app = express();
 
-// Ensures your site loads at the main URL
-app.use(express.static(path.join(__dirname)));
+app.use(cors());
+// Serve your frontend files
+app.use(express.static(path.join(__dirname, 'public')));
 
+// THE BRIDGE: This route fetches links without getting blocked
 app.get('/fetch-links', async (req, res) => {
     try {
         const { url } = req.query;
-        // This specific header stops the 403 Forbidden error
         const response = await axios.get(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0' }
+            headers: { 
+                // This tricks Torrentio into thinking the request is from a person, not a bot
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36' 
+            }
         });
         res.json(response.data);
     } catch (error) {
-        res.status(500).json({ error: "Bridge failed" });
+        console.error("Bridge failed:", error.message);
+        res.status(500).json({ error: "Failed to reach Torrentio" });
     }
+});
+
+// Fixes the "Cannot GET /" error by serving your index.html
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;

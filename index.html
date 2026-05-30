@@ -1,76 +1,124 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Debug Mode | Party Sync</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Party Sync Pro | Discover</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        body { background: #111; color: #fff; font-family: sans-serif; padding: 20px; }
-        .movie-btn { padding: 10px; margin: 5px; background: #333; border: 1px solid #555; color: #fff; cursor: pointer; }
-        .link-card { background: #222; padding: 10px; margin: 10px 0; border-left: 5px solid #b8c1ec; }
+        /* KEEPING YOUR EXACT GRID STYLES */
+        :root { --bg: #0f0f12; --card: rgba(255, 255, 255, 0.03); --accent: #b8c1ec; --text: #eef1f5; }
+        body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; min-height: 100vh; }
+        .header { margin: 40px 0 20px; text-align: center; }
+        h1 span { color: var(--accent); }
+        .search-box { width: 100%; max-width: 600px; display: flex; background: var(--card); padding: 8px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 40px; }
+        input { flex: 1; background: transparent; border: none; padding: 12px; color: #fff; outline: none; font-size: 16px; }
+        .search-btn { background: var(--accent); color: #232946; border: none; padding: 10px 25px; border-radius: 12px; font-weight: 700; cursor: pointer; }
+        .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 25px; width: 100%; max-width: 1200px; }
+        .movie-card { background: var(--card); border-radius: 18px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: 0.3s; position: relative; }
+        .movie-card:hover { transform: translateY(-5px); border-color: var(--accent); }
+        .poster { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; }
+        .info { padding: 10px; text-align: center; background: rgba(0,0,0,0.8); position: absolute; bottom: 0; width: 100%; box-sizing: border-box; }
+        .title { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(10,10,12,0.98); backdrop-filter: blur(20px); z-index: 1000; padding: 50px 20px; overflow-y: auto; }
+        .stream-card { background: rgba(255,255,255,0.05); margin-bottom: 10px; padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; }
     </style>
 </head>
 <body>
-    <h1>Debug: Step Two</h1>
-    <p>Click a button to test the server tunnel:</p>
-    
-    <button class="movie-btn" onclick="testLinks('tt0468569', 'The Dark Knight', 'movie')">Test Movie (Dark Knight)</button>
-    <button class="movie-btn" onclick="testLinks('tt0944947', 'Game of Thrones', 'series')">Test Series (GoT S1 E1)</button>
 
-    <div id="status"></div>
-    <div id="results"></div>
+    <div class="header"><h1>Party Sync <span>Pro</span></h1></div>
+    
+    <div class="search-box">
+        <input type="text" id="query" placeholder="Search movies or shows..." onkeyup="if(event.key==='Enter') search()">
+        <button class="search-btn" onclick="search()">Search</button>
+    </div>
+
+    <div class="results-grid" id="grid"></div>
+
+    <div id="overlay">
+        <div style="max-width: 700px; margin: 0 auto; position: relative;">
+            <span style="position: absolute; top: -40px; right: 0; font-size: 30px; cursor: pointer; color: var(--accent);" onclick="closeOverlay()">&times;</span>
+            <h2 id="m-title" style="text-align:center; margin-bottom:30px;"></h2>
+            <div id="streams"></div>
+        </div>
+    </div>
 
     <script>
-        async function testLinks(id, name, type) {
-            const status = document.getElementById('status');
-            const results = document.getElementById('results');
-            
-            status.innerText = `Fetching ${name}...`;
-            results.innerHTML = '';
+        const grid = document.getElementById('grid');
+        const streamsDiv = document.getElementById('streams');
 
-            let url = `https://torrentio.strem.io/stream/${type}/${id}.json`;
-            if(type === 'series') url = `https://torrentio.strem.io/stream/series/${id}:1:1.json`;
+        // Trending Grid
+        async function init() {
+            try {
+                const res = await fetch('https://v3-cinemeta.strem.io/catalog/movie/top.json');
+                const data = await res.json();
+                render(data.metas);
+            } catch(e) { grid.innerHTML = "<p>Failed to load.</p>"; }
+        }
+
+        async function search() {
+            const q = document.getElementById('query').value;
+            if(!q) return;
+            try {
+                const res = await fetch(`https://v3-cinemeta.strem.io/catalog/movie/top/search=${encodeURIComponent(q)}.json`);
+                const data = await res.json();
+                render(data.metas);
+            } catch(e) { grid.innerHTML = '<p>Error.</p>'; }
+        }
+
+        function render(movies) {
+            grid.innerHTML = '';
+            movies.forEach(m => {
+                const div = document.createElement('div');
+                div.className = 'movie-card';
+                div.onclick = () => getLinks(m.imdb_id, m.name, m.type);
+                div.innerHTML = `<img class="poster" src="${m.poster}"><div class="info"><div class="title">${m.name}</div></div>`;
+                grid.appendChild(div);
+            });
+        }
+
+        // THE TARGETED FIX: Connecting your existing grid to your server tunnel
+        async function getLinks(id, name, type) {
+            document.getElementById('m-title').innerText = name;
+            document.getElementById('overlay').style.display = 'block';
+            streamsDiv.innerHTML = '<p style="text-align:center;">🔍 Tunneling request through server...</p>';
+
+            const cleanId = id.startsWith('tt') ? id : `tt${id}`;
+            let targetUrl = `https://torrentio.strem.io/stream/${type}/${cleanId}.json`;
+
+            if (type === 'series') {
+                const s = prompt("Season?", "1") || "1";
+                const e = prompt("Episode?", "1") || "1";
+                targetUrl = `https://torrentio.strem.io/stream/series/${cleanId}:${s}:${e}.json`;
+            }
 
             try {
-                // This calls your /fetch-links route in index.js
-                const res = await fetch(`/fetch-links?url=${encodeURIComponent(url)}`);
-                const data = await res.json();
+                // FIXED FETCH: Points to your Render server
+                const response = await fetch(`/fetch-links?url=${encodeURIComponent(targetUrl)}`);
+                const data = await response.json();
+                
+                streamsDiv.innerHTML = '';
 
                 if (!data.streams || data.streams.length === 0) {
-                    status.innerText = "No streams found. Your tunnel works, but the addon returned nothing.";
+                    streamsDiv.innerHTML = '<p style="text-align:center;">No streams found. Your tunnel works, but the addon returned nothing.</p>';
                     return;
                 }
 
-                status.innerText = `Success! Found ${data.streams.length} links.`;
+                // Rendering links back into your UI
                 data.streams.forEach(s => {
-                    const div = document.createElement('div');
-                    div.className = 'link-card';
-                    div.innerHTML = `<b>${s.name}</b><br>${s.title}`;
-                    results.appendChild(div);
+                    const card = document.createElement('div');
+                    card.className = 'stream-card';
+                    card.onclick = () => window.location.href = s.url;
+                    card.innerHTML = `<b>${s.name}</b><br><small>${s.title.split('\n')[0]}</small>`;
+                    streamsDiv.appendChild(card);
                 });
             } catch (err) {
-                status.innerText = "Tunnel Error: Check if your server is actually running.";
+                streamsDiv.innerHTML = '<p style="text-align:center; color:red;">Tunnel Error: Check Render logs.</p>';
             }
         }
 
-    // KEEP ALL YOUR GRID AND SEARCH CODE EXACTLY THE SAME
-async function getLinks(id, name, type) {
-    // ... keep your overlay and title code ...
-    
-    const cleanId = id.startsWith('tt') ? id : `tt${id}`;
-    let target = `https://torrentio.strem.io/stream/${type}/${cleanId}.json`;
-    
-    // ... keep your series/season prompt code ...
-
-    try {
-        // ONLY CHANGE THIS FETCH LINE: Use your server bridge
-        const response = await fetch(`/fetch-links?url=${encodeURIComponent(target)}`);
-        const data = await response.json();
-        
-        // ... keep your existing .forEach(s => { ... }) loop to render your cards ...
-        // THIS WILL NOW SHOW THE LINKS INSTEAD OF "NO STREAMS FOUND"
-    } catch (err) {
-        console.error("Fetch failed");
-    }
-}
+        function closeOverlay() { document.getElementById('overlay').style.display = 'none'; }
+        init();
     </script>
 </body>
 </html>
