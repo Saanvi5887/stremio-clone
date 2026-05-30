@@ -48,48 +48,40 @@
     </div>
 
     <script>
-      async function getLinks(id, name) {
+    async function getLinks(id, name, type = 'movie') {
     document.getElementById('m-title').innerText = name;
     overlay.style.display = 'block';
-    streamsDiv.innerHTML = '<div style="text-align:center;"><i class="fas fa-spinner fa-spin"></i> Digging into Torrentio...</div>';
+    streamsDiv.innerHTML = '<div style="text-align:center;"><i class="fas fa-spinner fa-spin"></i> Checking Torrentio...</div>';
     
-    try {
-        // Step 1: Try the direct IMDB ID (The Standard Way)
-        const target = `https://torrentio.strem.io/stream/movie/${id}.json`;
-        const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(target)}`);
-        let data = await res.json();
-        
-        // Step 2: Fallback Logic - If ID fails, try a name-based query (Great for Anime/Series)
-        if (!data.streams || data.streams.length === 0) {
-            console.log("ID search failed, trying fallback...");
-            const fallbackTarget = `https://torrentio.strem.io/stream/series/${id}.json`;
-            const res2 = await fetch(`https://corsproxy.io/?${encodeURIComponent(fallbackTarget)}`);
-            data = await res2.json();
-        }
+    // Series need Season and Episode to get links
+    let season = 1, episode = 1; 
+    if (type === 'series') {
+        const s = prompt("Which Season?", "1");
+        const e = prompt("Which Episode?", "1");
+        season = s || 1; episode = e || 1;
+    }
 
-        streamsDiv.innerHTML = '';
+    try {
+        const proxy = "https://corsproxy.io/?";
+        // Torrentio uses different URL structures for movies vs series
+        const endpoint = type === 'movie' 
+            ? `https://torrentio.strem.io/stream/movie/${id}.json`
+            : `https://torrentio.strem.io/stream/series/${id}:${season}:${episode}.json`;
+
+        const res = await fetch(proxy + encodeURIComponent(endpoint));
+        const data = await res.json();
         
-        if(!data.streams || data.streams.length === 0) {
-            streamsDiv.innerHTML = `
-                <div style="text-align:center; padding:20px;">
-                    <p>No direct links for this ID.</p>
-                    <button class="search-btn" onclick="window.open('https://www.imdb.com/find?q=${encodeURIComponent(name)}', '_blank')">
-                        Verify IMDB ID
-                    </button>
-                </div>`;
+        streamsDiv.innerHTML = '';
+        if (!data.streams || data.streams.length === 0) {
+            streamsDiv.innerHTML = `<p style="text-align:center;">No streams found for this ${type}. Try another movie!</p>`;
             return;
         }
 
-        // Step 3: Render the "Numerous Links"
         data.streams.forEach(s => {
             const row = document.createElement('div');
             row.className = 'stream-card';
-            
-            // Parsing the meta data Torrentio gives us
             const meta = s.title.split('\n');
-            const quality = s.name; 
-            const details = meta[1] || "Direct Stream";
-
+            
             row.onclick = () => {
                 const room = Math.random().toString(36).substring(7);
                 window.location.href = `/player.html?room=${room}&videoUrl=${encodeURIComponent(s.url)}&title=${encodeURIComponent(name)}`;
@@ -97,18 +89,31 @@
 
             row.innerHTML = `
                 <div style="flex:1">
-                    <div style="font-weight:700; color:var(--accent); margin-bottom:5px; font-size:14px;">${meta[0]}</div>
-                    <div style="font-size:11px; color:#888; letter-spacing:0.3px;">${details}</div>
+                    <div style="font-weight:700; color:var(--accent); margin-bottom:4px;">${meta[0]}</div>
+                    <div style="font-size:11px; color:#888;">${meta[1] || 'No Size Info'}</div>
                 </div>
-                <div style="background:rgba(184,193,236,0.1); padding:6px 12px; border-radius:10px; font-size:11px; font-weight:900; color:var(--accent); min-width:60px; text-align:center;">
-                    ${quality}
+                <div style="font-weight:800; font-size:11px; background:rgba(184,193,236,0.1); padding:4px 8px; border-radius:6px; color:var(--accent);">
+                    ${s.name}
                 </div>
             `;
             streamsDiv.appendChild(row);
         });
     } catch(e) { 
-        streamsDiv.innerHTML = '<p style="text-align:center; color:var(--danger);">Addon server timed out. Try again.</p>'; 
+        streamsDiv.innerHTML = '<p>Error connecting to Torrentio.</p>'; 
     }
+}
+
+// Update your search render to pass the 'type' (movie/series)
+function render(movies) {
+    grid.innerHTML = '';
+    movies.forEach(m => {
+        const div = document.createElement('div');
+        div.className = 'movie-card';
+        // We pass m.type so the code knows if it's a movie or series
+        div.onclick = () => getLinks(m.imdb_id, m.name, m.type);
+        div.innerHTML = `<img class="poster" src="${m.poster}"><div class="info"><div class="title">${m.name}</div></div>`;
+        grid.appendChild(div);
+    });
 }
     </script>
 </body>
