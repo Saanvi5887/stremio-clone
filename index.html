@@ -27,11 +27,17 @@
         .info { padding: 10px; text-align: center; background: rgba(0,0,0,0.8); position: absolute; bottom: 0; width: 100%; box-sizing: border-box; }
         .title { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        #overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(10,10,12,0.98); backdrop-filter: blur(20px); z-index: 1000; padding: 50px 20px; }
+        #overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(10,10,12,0.98); backdrop-filter: blur(20px); z-index: 1000; padding: 50px 20px; box-sizing: border-box; overflow-y: auto; }
         .overlay-content { max-width: 700px; margin: 0 auto; position: relative; }
-        .close-btn { position: absolute; top: -40px; right: 0; font-size: 30px; cursor: pointer; color: var(--accent); }
-        .stream-card { background: rgba(255,255,255,0.05); margin-bottom: 10px; padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-        .stream-card:hover { border-color: var(--accent); background: rgba(184, 193, 236, 0.08); }
+        .close-btn { position: sticky; top: 0; float: right; font-size: 30px; cursor: pointer; color: var(--accent); z-index: 10; }
+        
+        .stream-card { 
+            background: rgba(255,255,255,0.05); margin-bottom: 12px; padding: 18px; 
+            border-radius: 14px; border: 1px solid rgba(255,255,255,0.1); 
+            cursor: pointer; display: flex; justify-content: space-between; align-items: center; 
+            transition: 0.2s;
+        }
+        .stream-card:hover { border-color: var(--accent); background: rgba(184, 193, 236, 0.08); transform: scale(1.01); }
     </style>
 </head>
 <body>
@@ -48,7 +54,7 @@
     <div id="overlay">
         <div class="overlay-content">
             <span class="close-btn" onclick="closeOverlay()">&times;</span>
-            <h2 id="m-title" style="text-align:center; margin-bottom:30px;"></h2>
+            <h2 id="m-title" style="text-align:center; margin-bottom:30px; color: var(--accent);"></h2>
             <div id="streams"></div>
         </div>
     </div>
@@ -57,7 +63,6 @@
         const grid = document.getElementById('grid');
         const streamsDiv = document.getElementById('streams');
 
-        // Load trending movies immediately on startup
         async function init() {
             grid.innerHTML = "<p>Loading trending content...</p>";
             try {
@@ -84,7 +89,7 @@
                 const div = document.createElement('div');
                 div.className = 'movie-card';
                 div.onclick = () => getLinks(m.imdb_id, m.name, m.type);
-                div.innerHTML = `<img class="poster" src="${m.poster}"><div class="info"><div class="title">${m.name}</div></div>`;
+                div.innerHTML = `<img class="poster" src="${m.poster}" onerror="this.src='https://via.placeholder.com/300x450?text=No+Poster'"><div class="info"><div class="title">${m.name}</div></div>`;
                 grid.appendChild(div);
             });
         }
@@ -92,40 +97,55 @@
         async function getLinks(id, name, type) {
             document.getElementById('m-title').innerText = name;
             document.getElementById('overlay').style.display = 'block';
-            streamsDiv.innerHTML = '<p style="text-align:center;">Fetching links...</p>';
-            
-            let s = 1, e = 1;
+            streamsDiv.innerHTML = '<div style="text-align:center; padding: 20px;">🚀 Bypassing blocks via server tunnel...</div>';
+
+            const cleanId = id.startsWith('tt') ? id : `tt${id}`;
+            let targetUrl = `https://torrentio.strem.io/stream/${type}/${cleanId}.json`;
+
             if (type === 'series') {
-                s = prompt("Season?", "1") || 1; e = prompt("Episode?", "1") || 1;
+                const s = prompt("Season?", "1") || "1";
+                const e = prompt("Episode?", "1") || "1";
+                targetUrl = `https://torrentio.strem.io/stream/series/${cleanId}:${s}:${e}.json`;
             }
 
             try {
-                const api = type === 'movie' 
-                    ? `https://torrentio.strem.io/stream/movie/${id}.json`
-                    : `https://torrentio.strem.io/stream/series/${id}:${s}:${e}.json`;
-
-                // Switched to AllOrigins proxy to fix the 403 Forbidden errors
-                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(api)}`);
-                const json = await res.json();
-                const data = JSON.parse(json.contents);
+                // Calls YOUR Render server
+                const response = await fetch(`/fetch-links?url=${encodeURIComponent(targetUrl)}`);
                 
+                if (!response.ok) throw new Error(`Server status: ${response.status}`);
+                
+                const data = await response.json();
                 streamsDiv.innerHTML = '';
-                if(!data.streams || data.streams.length === 0) {
-                    streamsDiv.innerHTML = '<p>No streams found. Try a different title.</p>';
+
+                if (!data.streams || data.streams.length === 0) {
+                    streamsDiv.innerHTML = '<p style="text-align:center;">No links found. Torrentio might not have this file yet.</p>';
                     return;
                 }
 
-                data.streams.forEach(stream => {
+                data.streams.forEach(s => {
                     const card = document.createElement('div');
                     card.className = 'stream-card';
                     card.onclick = () => {
-                        const room = Math.random().toString(36).substring(7);
-                        window.location.href = `/player.html?room=${room}&videoUrl=${encodeURIComponent(stream.url)}&title=${encodeURIComponent(name)}`;
+                        window.location.href = `/player.html?videoUrl=${encodeURIComponent(s.url)}&title=${encodeURIComponent(name)}`;
                     };
-                    card.innerHTML = `<div><b>${stream.name}</b><br><small>${stream.title.split('\n')[1] || ''}</small></div><i class="fas fa-play"></i>`;
+                    
+                    const titleParts = s.title.split('\n');
+                    card.innerHTML = `
+                        <div style="flex:1; padding-right: 10px;">
+                            <div style="font-weight:700; margin-bottom:4px;">${s.name}</div>
+                            <div style="font-size:12px; color:#aaa; line-height:1.4;">${titleParts[1] || titleParts[0]}</div>
+                        </div>
+                        <i class="fas fa-play-circle" style="font-size: 24px; color: var(--accent);"></i>
+                    `;
                     streamsDiv.appendChild(card);
                 });
-            } catch(err) { streamsDiv.innerHTML = '<p>Proxy error. Try again.</p>'; }
+            } catch (err) {
+                console.error("Tunnel Failure:", err);
+                streamsDiv.innerHTML = `<div style="text-align:center; color:#ff8080; padding: 20px;">
+                    <b>Tunnel Failure</b><br>${err.message}<br>
+                    <small>Check your Render logs to see if index.js is crashing.</small>
+                </div>`;
+            }
         }
 
         function closeOverlay() { document.getElementById('overlay').style.display = 'none'; }
