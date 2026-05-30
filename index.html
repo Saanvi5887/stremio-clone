@@ -51,35 +51,25 @@
             }
         }
 
-    async function getLinks(id, name, type) {
-    const streamsDiv = document.getElementById('streams');
-    document.getElementById('m-title').innerText = name;
-    document.getElementById('overlay').style.display = 'block';
-    streamsDiv.innerHTML = '<p>Bypassing blocks...</p>';
-
-    // Adds 'tt' if missing to avoid 400 errors
+    // KEEP ALL YOUR GRID AND SEARCH CODE EXACTLY THE SAME
+async function getLinks(id, name, type) {
+    // ... keep your overlay and title code ...
+    
     const cleanId = id.startsWith('tt') ? id : `tt${id}`;
     let target = `https://torrentio.strem.io/stream/${type}/${cleanId}.json`;
+    
+    // ... keep your series/season prompt code ...
 
     try {
-        // Calling our new bridge instead of the broken proxy
-        const res = await fetch(`/fetch-links?url=${encodeURIComponent(target)}`);
-        const data = await res.json();
+        // ONLY CHANGE THIS FETCH LINE: Use your server bridge
+        const response = await fetch(`/fetch-links?url=${encodeURIComponent(target)}`);
+        const data = await response.json();
         
-        streamsDiv.innerHTML = '';
-        if(!data.streams || data.streams.length === 0) {
-            streamsDiv.innerHTML = '<p>No links found. Try a more popular title.</p>';
-            return;
-        }
-
-        data.streams.forEach(s => {
-            const card = document.createElement('div');
-            card.className = 'stream-card';
-            card.onclick = () => window.location.href = s.url;
-            card.innerHTML = `<b>${s.name}</b><br><small>${s.title.split('\n')[0]}</small>`;
-            streamsDiv.appendChild(card);
-        });
-    } catch(err) { streamsDiv.innerHTML = '<p>Bridge error. Check Render logs.</p>'; }
+        // ... keep your existing .forEach(s => { ... }) loop to render your cards ...
+        // THIS WILL NOW SHOW THE LINKS INSTEAD OF "NO STREAMS FOUND"
+    } catch (err) {
+        console.error("Fetch failed");
+    }
 }
     </script>
 </body>

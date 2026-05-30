@@ -1,27 +1,31 @@
 const express = require('express');
 const axios = require('axios');
 const path = require('path');
+const cors = require('cors');
 const app = express();
 
-// This line stops the "Cannot GET /" error once and for all
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
+app.use(cors());
+app.use(express.static(path.join(__dirname, 'public')));
 
-// The Bridge: Fetches links without getting blocked
+// THE BRIDGE: This stops the "returned nothing" error
 app.get('/fetch-links', async (req, res) => {
     try {
         const { url } = req.query;
         const response = await axios.get(url, {
             headers: { 
-                // This "User-Agent" is the secret to stopping the 403 errors
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36' 
+                // This makes the request look like a real person browsing
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36' 
             }
         });
         res.json(response.data);
     } catch (error) {
-        res.status(500).json({ error: "Torrentio connection failed" });
+        res.status(500).json({ error: "Failed to reach Torrentio" });
     }
+});
+
+// Ensure your home page still loads without "Cannot GET /"
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
