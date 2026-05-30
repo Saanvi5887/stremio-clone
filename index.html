@@ -3,130 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Party Sync Pro | Discover</title>
+    <title>Party Sync | Discovery</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root { --bg: #0f0f12; --card: rgba(255, 255, 255, 0.03); --accent: #b8c1ec; --text: #eef1f5; }
         body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 20px; }
         
-        .search-area { width: 100%; max-width: 600px; margin: 20px 0 40px; display: flex; background: var(--card); padding: 8px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); }
-        input { flex: 1; background: transparent; border: none; padding: 12px; color: #fff; outline: none; }
-        
-        /* MOVIE GRID */
-        .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; width: 100%; max-width: 1200px; }
-        .movie-card { background: var(--card); border-radius: 15px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: 0.3s; }
-        .movie-card:hover { transform: scale(1.05); border-color: var(--accent); }
-        .poster { width: 100%; aspect-ratio: 2/3; object-fit: cover; }
-        .title { padding: 10px; font-size: 13px; font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .search-area { width: 100%; max-width: 600px; margin: 20px 0 40px; display: flex; background: var(--card); padding: 8px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); }
+        input { flex: 1; background: transparent; border: none; padding: 12px; color: #fff; outline: none; font-size: 16px; }
+        .search-btn { background: var(--accent); color: #232946; border: none; padding: 10px 20px; border-radius: 12px; font-weight: 700; cursor: pointer; }
 
-        /* OVERLAY FOR LINKS */
-        #stream-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.9); backdrop-filter: blur(10px); z-index: 1000; padding: 40px 20px; box-sizing: border-box; overflow-y: auto; }
-        .stream-list { max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
-        .stream-item { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-        .stream-item:hover { border-color: var(--accent); }
-        .close-btn { position: absolute; top: 20px; right: 20px; font-size: 30px; cursor: pointer; color: var(--accent); }
+        .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 25px; width: 100%; max-width: 1200px; }
+        .movie-card { background: var(--card); border-radius: 20px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: 0.3s ease; position: relative; }
+        .movie-card:hover { transform: translateY(-10px); border-color: var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .poster { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; }
+        .info { padding: 15px; text-align: center; background: linear-gradient(transparent, rgba(0,0,0,0.8)); position: absolute; bottom: 0; width: 100%; box-sizing: border-box; }
+        .title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* STREAM SELECTION OVERLAY */
+        #overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(10,10,12,0.95); backdrop-filter: blur(15px); z-index: 1000; padding: 50px 20px; box-sizing: border-box; overflow-y: auto; }
+        .overlay-content { max-width: 700px; margin: 0 auto; }
+        .stream-card { background: rgba(255,255,255,0.05); margin-bottom: 12px; padding: 20px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
+        .stream-card:hover { border-color: var(--accent); background: rgba(184, 193, 236, 0.1); }
+        .close-x { position: absolute; top: 20px; right: 30px; font-size: 30px; cursor: pointer; color: var(--accent); }
     </style>
 </head>
 <body>
 
-    <h1>Party Sync Pro</h1>
+    <h1 style="letter-spacing: -1px;">Party Sync <span style="color:var(--accent)">Pro</span></h1>
+    
     <div class="search-area">
-        <input type="text" id="searchInput" placeholder="Search movies..." onkeyup="if(event.key==='Enter') searchMovies()">
+        <input type="text" id="q" placeholder="Search for movies or series..." onkeyup="if(event.key==='Enter') search()">
+        <button class="search-btn" onclick="search()">Search</button>
     </div>
 
-    <div class="results-grid" id="movieGrid"></div>
+    <div class="results-grid" id="grid"></div>
 
-    <div id="stream-overlay">
-        <span class="close-btn" onclick="closeOverlay()">&times;</span>
-        <h2 id="selectedTitle" style="text-align:center; margin-bottom:30px;"></h2>
-        <div class="stream-list" id="streamList"></div>
+    <div id="overlay">
+        <span class="close-x" onclick="document.getElementById('overlay').style.display='none'">&times;</span>
+        <div class="overlay-content">
+            <h2 id="m-title" style="margin-bottom: 30px; text-align: center;"></h2>
+            <div id="streams"></div>
+        </div>
     </div>
 
     <script>
-        // 1. Search for Movies (Visual Grid)
-        async function searchMovies() {
-            const query = document.getElementById('searchInput').value;
-            const grid = document.getElementById('movieGrid');
-            const res = await fetch(`https://v3-cinemeta.strem.io/catalog/movie/top/search=${query}.json`);
+        const grid = document.getElementById('grid');
+        const overlay = document.getElementById('overlay');
+        const streamsDiv = document.getElementById('streams');
+
+        async function search() {
+            const query = document.getElementById('q').value;
+            if(!query) return;
+            grid.innerHTML = '<p>Searching...</p>';
+            const res = await fetch(`https://v3-cinemeta.strem.io/catalog/movie/top/search=${encodeURIComponent(query)}.json`);
             const data = await res.json();
-            
+            render(data.metas);
+        }
+
+        function render(movies) {
             grid.innerHTML = '';
-            data.metas.forEach(movie => {
-                const card = document.createElement('div');
-                card.className = 'movie-card';
-                card.onclick = () => showStreams(movie.imdb_id, movie.name);
-                card.innerHTML = `<img class="poster" src="${movie.poster}"><div class="title">${movie.name}</div>`;
-                grid.appendChild(card);
+            movies.forEach(m => {
+                const div = document.createElement('div');
+                div.className = 'movie-card';
+                div.onclick = () => getLinks(m.imdb_id, m.name);
+                div.innerHTML = `<img class="poster" src="${m.poster}"><div class="info"><div class="title">${m.name}</div></div>`;
+                grid.appendChild(div);
             });
         }
 
-        // 2. Click Movie -> Fetch Torrentio Links (Pure Addon Logic)
-        async function showStreams(imdb, name) {
-    const overlay = document.getElementById('stream-overlay');
-    const list = document.getElementById('streamList');
-    document.getElementById('selectedTitle').innerText = `Links for ${name}`;
-    overlay.style.display = 'block';
-    list.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Fetching from Torrentio...</div>';
-
-    try {
-        // We add a proxy prefix to bypass the "Error loading links"
-        const proxy = "https://corsproxy.io/?"; 
-        const target = `https://torrentio.strem.io/stream/movie/${imdb}.json`;
-        
-        const res = await fetch(proxy + encodeURIComponent(target));
-        const data = await res.json();
-        
-        list.innerHTML = '';
-        
-        if (!data.streams || data.streams.length === 0) {
-            list.innerHTML = '<p style="text-align:center;">No streams found for this movie.</p>';
-            return;
-        }
-
-        data.streams.forEach(s => {
-            const item = document.createElement('div');
-            item.className = 'stream-item';
+        async function getLinks(id, name) {
+            document.getElementById('m-title').innerText = name;
+            overlay.style.display = 'block';
+            streamsDiv.innerHTML = '<p style="text-align:center;">Fetching Torrentio links...</p>';
             
-            // Clean up the Torrentio text data
-            const titleLines = s.title.split('\n');
-            const provider = s.name; // e.g., "Torrentio"
-            const metadata = titleLines[1] || "No size info";
+            try {
+                // Using CORS proxy to prevent the "Error loading links"
+                const res = await fetch(`https://corsproxy.io/?${encodeURIComponent('https://torrentio.strem.io/stream/movie/' + id + '.json')}`);
+                const data = await res.json();
+                
+                streamsDiv.innerHTML = '';
+                if(!data.streams || data.streams.length === 0) {
+                    streamsDiv.innerHTML = '<p style="text-align:center;">No streams found for this IMDB ID.</p>';
+                    return;
+                }
 
-            item.onclick = () => {
-                const room = Math.random().toString(36).substring(7);
-                window.location.href = `/player.html?room=${room}&videoUrl=${encodeURIComponent(s.url)}&title=${encodeURIComponent(name)}`;
-            };
+                data.streams.forEach(s => {
+                    const row = document.createElement('div');
+                    row.className = 'stream-card';
+                    const meta = s.title.split('\n');
+                    row.onclick = () => {
+                        const room = Math.random().toString(36).substring(7);
+                        window.location.href = `/player.html?room=${room}&videoUrl=${encodeURIComponent(s.url)}&title=${encodeURIComponent(name)}`;
+                    };
+                    row.innerHTML = `
+                        <div style="flex:1">
+                            <div style="font-weight:700; color:var(--accent); margin-bottom:5px;">${meta[0]}</div>
+                            <div style="font-size:12px; color:#888;">${meta[1] || ''}</div>
+                        </div>
+                        <div style="font-weight:800; font-size:12px;">${s.name}</div>
+                    `;
+                    streamsDiv.appendChild(row);
+                });
+            } catch(e) { streamsDiv.innerHTML = '<p>Failed to load streams.</p>'; }
+        }
 
-            item.innerHTML = `
-                <div style="flex: 1;">
-                    <div style="font-weight:600; color:var(--accent);">${titleLines[0]}</div>
-                    <div style="font-size:11px; color:#666; margin-top:4px;">${metadata}</div>
-                </div>
-                <div style="background:rgba(184,193,236,0.1); padding:5px 10px; border-radius:8px; font-size:11px; font-weight:800; color:var(--accent);">
-                    ${provider}
-                </div>
-            `;
-            list.appendChild(item);
-        });
-    } catch(e) { 
-        console.error(e);
-        list.innerHTML = '<div style="text-align:center; color:#ff7373;">Failed to connect to Addon. Try again.</div>'; 
-    }
-}
-
-        function closeOverlay() { document.getElementById('stream-overlay').style.display = 'none'; }
-        
-        // Initial Trending Load
-        fetch('https://v3-cinemeta.strem.io/catalog/movie/top.json').then(r => r.json()).then(d => {
-            const grid = document.getElementById('movieGrid');
-            d.metas.forEach(movie => {
-                const card = document.createElement('div');
-                card.className = 'movie-card';
-                card.onclick = () => showStreams(movie.imdb_id, movie.name);
-                card.innerHTML = `<img class="poster" src="${movie.poster}"><div class="title">${movie.name}</div>`;
-                grid.appendChild(card);
-            });
-        });
+        // Initial Load
+        fetch('https://v3-cinemeta.strem.io/catalog/movie/top.json').then(r=>r.json()).then(d=>render(d.metas));
     </script>
 </body>
 </html>
