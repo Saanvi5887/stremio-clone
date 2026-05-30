@@ -1,108 +1,190 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Party Sync | Theater</title>
+    <title>Party Sync Pro | Theater</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root { --bg: #0f0f12; --accent: #b8c1ec; --card: rgba(255, 255, 255, 0.03); }
-        body { margin:0; background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; display: flex; height: 100vh; overflow: hidden; }
-        
-        #theater { flex: 1; display: flex; flex-direction: column; }
-        
-        /* THE VIDEO PLAYER (Replacing Iframe) */
-        video#main-video { width: 100%; height: 100%; background: #000; outline: none; }
+        :root {
+            --bg: #0f0f12;
+            --card: rgba(255, 255, 255, 0.03);
+            --accent: #b8c1ec;
+            --text-main: #eef1f5;
+            --danger: #e57373;
+        }
 
+        body { 
+            margin:0; background: var(--bg); color: var(--text-main); 
+            font-family: 'Inter', sans-serif; display: flex; height: 100vh; overflow: hidden; 
+        }
+
+        /* MAIN THEATER AREA */
+        #theater { flex: 1; display: flex; flex-direction: column; position: relative; }
+        
+        /* THE NATIVE VIDEO PLAYER */
+        #video-container { flex: 1; background: #000; position: relative; display: flex; align-items: center; }
+        video#main-video { width: 100%; max-height: 100%; outline: none; }
+
+        /* CONTROL BAR */
         .controls { 
-            background: rgba(15, 15, 18, 0.9); backdrop-filter: blur(15px);
-            padding: 15px; display: flex; justify-content: center; gap: 20px; 
+            background: rgba(15, 15, 18, 0.95); backdrop-filter: blur(20px);
+            padding: 15px 30px; display: flex; justify-content: center; gap: 20px; 
             border-top: 1px solid rgba(255, 255, 255, 0.05); align-items: center;
         }
-        
+
         .icon-btn {
             background: var(--card); border: 1px solid rgba(255, 255, 255, 0.1); 
-            color: var(--accent); width: 45px; height: 45px; border-radius: 12px;
+            color: var(--accent); width: 46px; height: 46px; border-radius: 14px;
             cursor: pointer; display: flex; align-items: center; justify-content: center;
+            font-size: 16px; transition: 0.3s;
+        }
+        
+        .icon-btn:hover { background: rgba(184, 193, 236, 0.1); border-color: var(--accent); transform: translateY(-2px); }
+        .icon-btn.off { background: rgba(229, 115, 115, 0.1); border-color: var(--danger); color: var(--danger); }
+
+        .sync-btn {
+            background: var(--accent); color: #232946; 
+            padding: 10px 24px; border-radius: 12px; font-weight: 700;
+            border: none; cursor: pointer; transition: 0.3s;
         }
 
-        #sidebar { width: 260px; background: #121216; border-left: 1px solid rgba(255,255,255,0.05); padding: 15px; display: flex; flex-direction: column; gap: 15px; }
-        .cam-box { width: 100%; border-radius: 15px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05); position: relative; }
-        video.cam { width: 100%; transform: scaleX(-1); display: block; }
-        .name-tag { position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.5); padding: 2px 10px; border-radius: 10px; font-size: 10px; color: var(--accent); }
+        /* SIDEBAR */
+        #sidebar { 
+            width: 280px; background: #121216; 
+            border-left: 1px solid rgba(255,255,255,0.05); 
+            padding: 20px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto;
+        }
+
+        .cam-box { 
+            position: relative; width: 100%; border-radius: 18px; 
+            overflow: hidden; border: 1px solid rgba(255,255,255,0.05); background: #000;
+        }
+        video.cam-feed { width: 100%; transform: scaleX(-1); display: block; }
+        
+        .name-pill { 
+            position: absolute; bottom: 10px; left: 10px; 
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+            padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 600;
+            color: #fff; border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .label { font-size: 11px; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 1px; }
     </style>
 </head>
 <body>
+
     <div id="theater">
-        <video id="main-video" controls autoplay playsinline></video>
+        <div id="video-container">
+            <video id="main-video" controls playsinline></video>
+        </div>
 
         <div class="controls">
-            <button class="icon-btn" onclick="syncVideo()"><i class="fas fa-sync"></i></button>
+            <button class="sync-btn" onclick="emitSync()">
+                <i class="fas fa-magic"></i> SYNC ALL
+            </button>
             <button id="mic-btn" class="icon-btn" onclick="toggleMic()"><i class="fas fa-microphone"></i></button>
             <button id="cam-btn" class="icon-btn" onclick="toggleCam()"><i class="fas fa-video"></i></button>
+            <button class="icon-btn" style="color:var(--danger)" onclick="window.location.href='/'">
+                <i class="fas fa-power-off"></i>
+            </button>
         </div>
     </div>
 
     <div id="sidebar">
+        <div class="label">Your Feed</div>
         <div class="cam-box">
-            <video id="my-cam" class="cam" autoplay muted playsinline></video>
-            <div id="my-name" class="name-tag">You</div>
+            <video id="my-cam" class="cam-feed" autoplay muted playsinline></video>
+            <div id="my-name-tag" class="name-pill">You</div>
         </div>
+        
+        <div class="label">The Squad</div>
         <div id="friend-cams"></div>
     </div>
 
     <script>
         const params = new URLSearchParams(window.location.search);
         const roomId = params.get('room');
-        const videoUrl = params.get('videoUrl'); // Receiving the Torrentio link
+        const videoUrl = params.get('videoUrl');
         const video = document.getElementById('main-video');
         const socket = io();
 
+        // 1. Set Movie Source
         if (videoUrl) { video.src = videoUrl; }
 
-        // --- Video Sync Logic ---
-        function syncVideo() {
-            socket.emit('sync-event', { room: roomId, time: video.currentTime, paused: video.paused });
-        }
-
-        socket.on('apply-sync', (data) => {
-            if (Math.abs(video.currentTime - data.time) > 1) {
-                video.currentTime = data.time;
-            }
-            if (data.paused) video.pause(); else video.play();
-        });
-
-        // --- Camera Logic (Using your working setup) ---
-        const peer = new Peer();
-        let myStream;
-        const name = prompt("Your name:") || "Friend";
-        document.getElementById('my-name').innerText = name;
-
-        async function init() {
-            myStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
-            document.getElementById('my-cam').srcObject = myStream;
-            peer.on('call', call => {
-                call.answer(myStream);
-                call.on('stream', stream => addFriend(stream, call.peer, "Guest"));
+        // 2. Sync Logic (Matches everyone to the leader's timestamp)
+        function emitSync() {
+            socket.emit('sync-event', { 
+                roomId, 
+                time: video.currentTime, 
+                paused: video.paused 
             });
         }
 
-        function addFriend(stream, id, n) {
+        socket.on('apply-sync', (data) => {
+            if (Math.abs(video.currentTime - data.time) > 1.5) {
+                video.currentTime = data.time;
+            }
+            if (data.paused && !video.paused) video.pause();
+            else if (!data.paused && video.paused) video.play();
+        });
+
+        // 3. Video Call & Identity
+        const userName = prompt("Enter your party name:", "Guest") || "Guest";
+        document.getElementById('my-name-tag').innerText = userName;
+
+        const peer = new Peer();
+        let myStream;
+
+        async function startMedia() {
+            try {
+                myStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
+                document.getElementById('my-cam').srcObject = myStream;
+                
+                peer.on('call', call => {
+                    call.answer(myStream);
+                    const peerName = call.metadata ? call.metadata.userName : "Friend";
+                    call.on('stream', stream => addFriendVideo(stream, call.peer, peerName));
+                });
+            } catch(e) { console.error("Camera access denied"); }
+        }
+
+        function addFriendVideo(stream, id, name) {
             if (document.getElementById(id)) return;
-            const div = document.createElement('div');
-            div.className = 'cam-box'; div.id = id;
-            div.innerHTML = `<video id="v-${id}" class="cam" autoplay playsinline></video><div class="name-tag">${n}</div>`;
-            document.getElementById('friend-cams').appendChild(div);
+            const container = document.createElement('div');
+            container.className = 'cam-box';
+            container.id = id;
+            container.innerHTML = `
+                <video id="v-${id}" class="cam-feed" autoplay playsinline></video>
+                <div class="name-pill">${name}</div>
+            `;
+            document.getElementById('friend-cams').appendChild(container);
             document.getElementById(`v-${id}`).srcObject = stream;
         }
 
         peer.on('open', id => socket.emit('join-room', roomId, id));
-        socket.on('user-connected', id => {
-            const call = peer.call(id, myStream, {metadata: {name: name}});
-            call.on('stream', s => addFriend(s, id, "Friend"));
+        
+        socket.on('user-connected', userId => {
+            setTimeout(() => {
+                const call = peer.call(userId, myStream, { metadata: { userName: userName } });
+                call.on('stream', stream => addFriendVideo(stream, userId, "Joining..."));
+            }, 1000);
         });
 
-        init();
+        // Toggles
+        let mic = true; let cam = true;
+        function toggleMic() {
+            mic = !mic; myStream.getAudioTracks()[0].enabled = mic;
+            document.getElementById('mic-btn').classList.toggle('off', !mic);
+            document.getElementById('mic-btn').innerHTML = mic ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
+        }
+        function toggleCam() {
+            cam = !cam; myStream.getVideoTracks()[0].enabled = cam;
+            document.getElementById('cam-btn').classList.toggle('off', !cam);
+            document.getElementById('cam-btn').innerHTML = cam ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash"></i>';
+        }
+
+        startMedia();
     </script>
 </body>
 </html>
