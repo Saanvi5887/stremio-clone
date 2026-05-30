@@ -2,29 +2,34 @@ const express = require('express');
 const axios = require('axios');
 const path = require('path');
 const cors = require('cors');
-
 const app = express();
+
 app.use(cors());
 
-// This tells the server to send your index.html when someone visits the site
+// Fixes the "Cannot GET /" by manually serving index.html
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// THE TUNNEL: Fetches the links without browser blocks
+// The Bridge: This fixes the 500 error
 app.get('/fetch-links', async (req, res) => {
     try {
         const { url } = req.query;
-        if (!url) return res.status(400).send("No URL");
+        console.log("Requesting Torrentio:", url);
 
-        console.log("Fetching:", url);
-        const response = await axios.get(url, { timeout: 10000 });
+        const response = await axios.get(url, {
+            headers: { 
+                // This header prevents Torrentio from blocking the server (the 500 error)
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' 
+            },
+            timeout: 8000
+        });
         res.json(response.data);
     } catch (error) {
-        console.error("Tunnel error:", error.message);
-        res.status(500).json({ error: "Failed" });
+        console.error("Bridge Error:", error.message);
+        res.status(500).json({ error: "Torrentio blocked the request" });
     }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server live on ${PORT}`));
+app.listen(PORT, () => console.log(`Server live on port ${PORT}`));

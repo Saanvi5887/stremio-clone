@@ -50,6 +50,43 @@
                 status.innerText = "Tunnel Error: Check if your server is actually running.";
             }
         }
+
+        async function getLinks(id, name, type) {
+    const streamsDiv = document.getElementById('streams');
+    document.getElementById('m-title').innerText = name;
+    document.getElementById('overlay').style.display = 'block';
+    streamsDiv.innerHTML = '<p style="text-align:center;">🔍 Tunneling through bridge...</p>';
+
+    const cleanId = id.startsWith('tt') ? id : `tt${id}`;
+    let target = `https://torrentio.strem.io/stream/${type}/${cleanId}.json`;
+
+    if (type === 'series') {
+        const s = prompt("Season?", "1") || "1";
+        const e = prompt("Episode?", "1") || "1";
+        target = `https://torrentio.strem.io/stream/series/${cleanId}:${s}:${e}.json`;
+    }
+
+    try {
+        const response = await fetch(`/fetch-links?url=${encodeURIComponent(target)}`);
+        const data = await response.json();
+
+        if (data.error || !data.streams || data.streams.length === 0) {
+            streamsDiv.innerHTML = '<p style="text-align:center;">No links found for this title.</p>';
+            return;
+        }
+
+        streamsDiv.innerHTML = '';
+        data.streams.forEach(s => {
+            const card = document.createElement('div');
+            card.className = 'stream-card';
+            card.onclick = () => window.location.href = `/player.html?videoUrl=${encodeURIComponent(s.url)}&title=${encodeURIComponent(name)}`;
+            card.innerHTML = `<div><b>${s.name}</b><br><small>${s.title.split('\n')[0]}</small></div>`;
+            streamsDiv.appendChild(card);
+        });
+    } catch (err) {
+        streamsDiv.innerHTML = '<p style="text-align:center; color:red;">Bridge failed. Check Render logs.</p>';
+    }
+}
     </script>
 </body>
 </html>
