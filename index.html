@@ -3,181 +3,186 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Party Sync Pro | Discover</title>
+    <title>Party Sync Pro | Theater</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root { 
-            --bg: #0f0f12; 
-            --card: rgba(255, 255, 255, 0.03); 
-            --accent: #b8c1ec; 
-            --text: #eef1f5; 
-        }
-
+        :root { --bg: #0f0f12; --card: rgba(255, 255, 255, 0.03); --accent: #b8c1ec; --text: #eef1f5; }
         body { 
             margin: 0; background: var(--bg); color: var(--text); 
             font-family: 'Inter', sans-serif; display: flex; flex-direction: column; 
             align-items: center; min-height: 100vh; padding: 20px; 
         }
 
-        h1 { font-size: 32px; letter-spacing: -1.5px; margin-bottom: 20px; font-weight: 800; }
+        .header { text-align: center; margin-bottom: 40px; }
+        h1 { font-size: 36px; letter-spacing: -1.5px; font-weight: 800; margin-bottom: 10px; }
         h1 span { color: var(--accent); }
 
-        /* SEARCH BAR */
+        /* SEARCH INTERFACE */
         .search-area { 
-            width: 100%; max-width: 600px; margin-bottom: 40px; 
-            display: flex; background: var(--card); padding: 8px; 
-            border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); 
-            backdrop-filter: blur(10px);
+            width: 100%; max-width: 600px; display: flex; background: var(--card); 
+            padding: 8px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); 
+            margin-bottom: 50px; backdrop-filter: blur(10px);
         }
         input { flex: 1; background: transparent; border: none; padding: 12px; color: #fff; outline: none; font-size: 16px; }
         .search-btn { background: var(--accent); color: #232946; border: none; padding: 10px 25px; border-radius: 12px; font-weight: 700; cursor: pointer; }
 
-        /* MOVIE GRID */
+        /* MOVIE GRID DISPLAY */
         .results-grid { 
             display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); 
-            gap: 25px; width: 100%; max-width: 1200px; 
+            gap: 30px; width: 100%; max-width: 1200px; 
         }
         .movie-card { 
             background: var(--card); border-radius: 20px; overflow: hidden; 
             border: 1px solid rgba(255,255,255,0.05); cursor: pointer; 
-            transition: 0.3s ease; position: relative; 
+            transition: 0.3s ease; position: relative;
         }
-        .movie-card:hover { transform: translateY(-8px); border-color: var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .movie-card:hover { transform: translateY(-10px); border-color: var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .poster { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; }
         .info { 
             padding: 15px; text-align: center; 
             background: linear-gradient(transparent, rgba(0,0,0,0.9)); 
-            position: absolute; bottom: 0; width: 100%; box-sizing: border-box; 
+            position: absolute; bottom: 0; width: 100%; box-sizing: border-box;
         }
-        .title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        /* OVERLAY FOR STREAMS */
+        /* OVERLAY FOR STREAM SELECTION */
         #overlay { 
             display: none; position: fixed; top:0; left:0; width:100%; height:100%; 
-            background: rgba(10,10,12,0.98); backdrop-filter: blur(20px); 
-            z-index: 1000; padding: 50px 20px; box-sizing: border-box; overflow-y: auto; 
+            background: rgba(10,10,12,0.98); backdrop-filter: blur(20px); z-index: 1000; 
+            padding: 50px 20px; box-sizing: border-box; overflow-y: auto; 
         }
-        .overlay-content { max-width: 750px; margin: 0 auto; }
-        .close-x { position: absolute; top: 25px; right: 35px; font-size: 35px; cursor: pointer; color: var(--accent); }
+        .overlay-content { max-width: 700px; margin: 0 auto; }
+        .close-btn { position: absolute; top: 25px; right: 35px; font-size: 35px; cursor: pointer; color: var(--accent); }
 
-        .stream-card { 
-            background: rgba(255,255,255,0.04); margin-bottom: 12px; padding: 18px; 
-            border-radius: 16px; border: 1px solid rgba(255,255,255,0.08); 
-            cursor: pointer; transition: 0.2s; display: flex; 
-            justify-content: space-between; align-items: center; 
+        .stream-item { 
+            background: rgba(255,255,255,0.04); margin-bottom: 12px; padding: 20px; 
+            border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); 
+            cursor: pointer; display: flex; justify-content: space-between; align-items: center; 
+            transition: 0.2s;
         }
-        .stream-card:hover { border-color: var(--accent); background: rgba(184, 193, 236, 0.08); transform: scale(1.01); }
+        .stream-item:hover { border-color: var(--accent); background: rgba(184, 193, 236, 0.08); }
     </style>
 </head>
 <body>
 
-    <h1>Party<span>Sync</span> Pro</h1>
+    <div class="header">
+        <h1>Party<span>Sync</span> Pro</h1>
+    </div>
     
     <div class="search-area">
-        <input type="text" id="q" placeholder="Search movies or shows..." onkeyup="if(event.key==='Enter') search()">
+        <input type="text" id="searchInput" placeholder="Search for movies or series..." onkeyup="if(event.key==='Enter') search()">
         <button class="search-btn" onclick="search()">Search</button>
     </div>
 
-    <div class="results-grid" id="grid">
+    <div class="results-grid" id="movieGrid">
         </div>
 
     <div id="overlay">
-        <span class="close-x" onclick="document.getElementById('overlay').style.display='none'">&times;</span>
+        <span class="close-btn" onclick="closeOverlay()">&times;</span>
         <div class="overlay-content">
-            <h2 id="m-title" style="text-align: center; margin-bottom: 40px; font-size: 28px;"></h2>
-            <div id="streams"></div>
+            <h2 id="selectedMovieTitle" style="text-align: center; margin-bottom: 30px; font-size: 28px;"></h2>
+            <div id="streamList"></div>
         </div>
     </div>
 
     <script>
-        const grid = document.getElementById('grid');
+        const grid = document.getElementById('movieGrid');
         const overlay = document.getElementById('overlay');
-        const streamsDiv = document.getElementById('streams');
+        const streamList = document.getElementById('streamList');
 
-        // Initial Load of Trending Movies
-        window.onload = () => {
-            fetch('https://v3-cinemeta.strem.io/catalog/movie/top.json')
-                .then(r => r.json())
-                .then(data => render(data.metas))
-                .catch(e => console.error("Load error:", e));
+        // Initial Load: Fetch Trending Movies automatically
+        window.onload = async () => {
+            grid.innerHTML = '<p>Loading trending movies...</p>';
+            try {
+                const res = await fetch('https://v3-cinemeta.strem.io/catalog/movie/top.json');
+                const data = await res.json();
+                renderMovies(data.metas);
+            } catch (e) {
+                grid.innerHTML = '<p>Failed to load trending content. Check your connection.</p>';
+            }
         };
 
         async function search() {
-            const query = document.getElementById('q').value;
+            const query = document.getElementById('searchInput').value;
             if(!query) return;
-            grid.innerHTML = '<p>Searching swarm...</p>';
+            grid.innerHTML = '<p>Searching...</p>';
             try {
                 const res = await fetch(`https://v3-cinemeta.strem.io/catalog/movie/top/search=${encodeURIComponent(query)}.json`);
                 const data = await res.json();
-                render(data.metas);
-            } catch(e) { grid.innerHTML = '<p>Search failed.</p>'; }
+                renderMovies(data.metas);
+            } catch(e) { grid.innerHTML = '<p>Search service is currently unavailable.</p>'; }
         }
 
-        function render(movies) {
+        function renderMovies(movies) {
             grid.innerHTML = '';
-            if(!movies) return;
+            if (!movies || movies.length === 0) {
+                grid.innerHTML = '<p>No results found.</p>';
+                return;
+            }
             movies.forEach(m => {
-                const div = document.createElement('div');
-                div.className = 'movie-card';
-                div.onclick = () => getLinks(m.imdb_id, m.name, m.type);
-                div.innerHTML = `
-                    <img class="poster" src="${m.poster || 'https://via.placeholder.com/200x300?text=No+Poster'}">
+                const card = document.createElement('div');
+                card.className = 'movie-card';
+                card.onclick = () => fetchStreams(m.imdb_id, m.name, m.type);
+                card.innerHTML = `
+                    <img class="poster" src="${m.poster || 'https://via.placeholder.com/300x450?text=No+Poster'}">
                     <div class="info"><div class="title">${m.name}</div></div>
                 `;
-                grid.appendChild(div);
+                grid.appendChild(card);
             });
         }
 
-        async function getLinks(id, name, type) {
-            document.getElementById('m-title').innerText = name;
+        async function fetchStreams(id, name, type) {
+            document.getElementById('selectedMovieTitle').innerText = name;
             overlay.style.display = 'block';
-            streamsDiv.innerHTML = '<div style="text-align:center; padding:50px;"><i class="fas fa-circle-notch fa-spin fa-2x"></i><br><br>Querying Torrentio Addon...</div>';
+            streamList.innerHTML = '<p style="text-align:center;">Fetching links from Torrentio...</p>';
             
             let season = 1, episode = 1;
             if (type === 'series') {
-                season = prompt("Season number?", "1") || 1;
-                episode = prompt("Episode number?", "1") || 1;
+                season = prompt("Enter Season number:", "1") || 1;
+                episode = prompt("Enter Episode number:", "1") || 1;
             }
 
             try {
-                // Using corsproxy.io to fix the "Error loading links"
+                // Using CORS proxy to prevent browser blocking
                 const proxy = "https://corsproxy.io/?";
-                const endpoint = type === 'movie' 
+                const api = type === 'movie' 
                     ? `https://torrentio.strem.io/stream/movie/${id}.json`
                     : `https://torrentio.strem.io/stream/series/${id}:${season}:${episode}.json`;
 
-                const res = await fetch(proxy + encodeURIComponent(endpoint));
+                const res = await fetch(proxy + encodeURIComponent(api));
                 const data = await res.json();
                 
-                streamsDiv.innerHTML = '';
+                streamList.innerHTML = '';
                 if(!data.streams || data.streams.length === 0) {
-                    streamsDiv.innerHTML = '<p style="text-align:center;">No streams found. Try another movie.</p>';
+                    streamList.innerHTML = '<p style="text-align:center;">No streams found for this selection. Try another quality.</p>';
                     return;
                 }
 
                 data.streams.forEach(s => {
-                    const card = document.createElement('div');
-                    card.className = 'stream-card';
-                    const meta = s.title.split('\n');
+                    const item = document.createElement('div');
+                    item.className = 'stream-item';
+                    const details = s.title.split('\n');
                     
-                    card.onclick = () => {
+                    item.onclick = () => {
                         const room = Math.random().toString(36).substring(7);
-                        window.location.href = `/player.html?room=${room}&videoUrl=${encodeURIComponent(s.url || s.externalUrl)}&title=${encodeURIComponent(name)}`;
+                        window.location.href = `/player.html?room=${room}&videoUrl=${encodeURIComponent(s.url)}&title=${encodeURIComponent(name)}`;
                     };
 
-                    card.innerHTML = `
+                    item.innerHTML = `
                         <div style="flex:1; padding-right:15px;">
-                            <div style="font-weight:700; color:var(--accent); margin-bottom:5px;">${meta[0]}</div>
-                            <div style="font-size:12px; color:#888;">${meta[1] || 'Direct Stream'}</div>
+                            <div style="font-weight:700; color:var(--accent); margin-bottom:5px;">${details[0]}</div>
+                            <div style="font-size:11px; color:#888;">${details[1] || 'Direct Stream'}</div>
                         </div>
-                        <div style="font-weight:900; font-size:11px; color:var(--accent); background:rgba(184,193,236,0.1); padding:6px 12px; border-radius:10px;">
+                        <div style="font-weight:900; font-size:11px; background:rgba(184,193,236,0.1); padding:6px 12px; border-radius:10px; color:var(--accent);">
                             ${s.name}
                         </div>
                     `;
-                    streamsDiv.appendChild(card);
+                    streamList.appendChild(item);
                 });
-            } catch(e) { streamsDiv.innerHTML = '<p>Torrentio timed out.</p>'; }
+            } catch(e) { streamList.innerHTML = '<p style="text-align:center;">Error connecting to stream provider.</p>'; }
         }
+
+        function closeOverlay() { overlay.style.display = 'none'; }
     </script>
 </body>
 </html>
