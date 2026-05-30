@@ -3,39 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Party Sync Pro</title>
+    <title>Party Sync Pro | Discover</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root { --bg: #0f0f12; --card: rgba(255, 255, 255, 0.03); --accent: #b8c1ec; --text: #eef1f5; }
-        body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        .search-area { width: 100%; max-width: 600px; display: flex; background: var(--card); padding: 8px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); margin: 40px 0; }
+        body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; min-height: 100vh; }
+        
+        .header { margin: 40px 0 20px; text-align: center; }
+        h1 span { color: var(--accent); }
+
+        .search-box { 
+            width: 100%; max-width: 600px; display: flex; background: var(--card); 
+            padding: 8px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); 
+            margin-bottom: 40px; backdrop-filter: blur(10px);
+        }
         input { flex: 1; background: transparent; border: none; padding: 12px; color: #fff; outline: none; font-size: 16px; }
         .search-btn { background: var(--accent); color: #232946; border: none; padding: 10px 25px; border-radius: 12px; font-weight: 700; cursor: pointer; }
-        .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 25px; width: 100%; max-width: 1200px; }
-        .movie-card { background: var(--card); border-radius: 20px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: 0.3s; position: relative; }
+
+        .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 25px; width: 100%; max-width: 1200px; }
+        .movie-card { background: var(--card); border-radius: 18px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: 0.3s; position: relative; }
         .movie-card:hover { transform: translateY(-5px); border-color: var(--accent); }
         .poster { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; }
         .info { padding: 10px; text-align: center; background: rgba(0,0,0,0.8); position: absolute; bottom: 0; width: 100%; box-sizing: border-box; }
         .title { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        #overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(10,10,12,0.98); backdrop-filter: blur(20px); z-index: 1000; padding: 50px 20px; box-sizing: border-box; overflow-y: auto; }
+
+        #overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(10,10,12,0.98); backdrop-filter: blur(20px); z-index: 1000; padding: 50px 20px; }
+        .overlay-content { max-width: 700px; margin: 0 auto; position: relative; }
+        .close-btn { position: absolute; top: -40px; right: 0; font-size: 30px; cursor: pointer; color: var(--accent); }
         .stream-card { background: rgba(255,255,255,0.05); margin-bottom: 10px; padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .stream-card:hover { border-color: var(--accent); background: rgba(184, 193, 236, 0.08); }
     </style>
 </head>
 <body>
 
-    <h1>Party Sync <span>Pro</span></h1>
+    <div class="header"><h1>Party Sync <span>Pro</span></h1></div>
     
-    <div class="search-area">
-        <input type="text" id="q" placeholder="Search movies or series..." onkeyup="if(event.key==='Enter') search()">
+    <div class="search-box">
+        <input type="text" id="query" placeholder="Search movies or shows..." onkeyup="if(event.key==='Enter') search()">
         <button class="search-btn" onclick="search()">Search</button>
     </div>
 
     <div class="results-grid" id="grid"></div>
 
     <div id="overlay">
-        <div style="max-width:700px; margin:0 auto; position:relative;">
-            <span style="position:absolute; top:-40px; right:0; font-size:30px; cursor:pointer;" onclick="closeOverlay()">&times;</span>
-            <h2 id="m-title" style="text-align:center;"></h2>
+        <div class="overlay-content">
+            <span class="close-btn" onclick="closeOverlay()">&times;</span>
+            <h2 id="m-title" style="text-align:center; margin-bottom:30px;"></h2>
             <div id="streams"></div>
         </div>
     </div>
@@ -44,22 +57,25 @@
         const grid = document.getElementById('grid');
         const streamsDiv = document.getElementById('streams');
 
-        // Initial load of trending items
-        async function loadTrending() {
+        // Load trending movies immediately on startup
+        async function init() {
+            grid.innerHTML = "<p>Loading trending content...</p>";
             try {
                 const res = await fetch('https://v3-cinemeta.strem.io/catalog/movie/top.json');
                 const data = await res.json();
                 render(data.metas);
-            } catch(e) { grid.innerHTML = "<p>Error loading grid.</p>"; }
+            } catch(e) { grid.innerHTML = "<p>Failed to load grid.</p>"; }
         }
 
         async function search() {
-            const query = document.getElementById('q').value;
-            if(!query) return;
+            const q = document.getElementById('query').value;
+            if(!q) return;
             grid.innerHTML = '<p>Searching...</p>';
-            const res = await fetch(`https://v3-cinemeta.strem.io/catalog/movie/top/search=${encodeURIComponent(query)}.json`);
-            const data = await res.json();
-            render(data.metas);
+            try {
+                const res = await fetch(`https://v3-cinemeta.strem.io/catalog/movie/top/search=${encodeURIComponent(q)}.json`);
+                const data = await res.json();
+                render(data.metas);
+            } catch(e) { grid.innerHTML = '<p>Search error.</p>'; }
         }
 
         function render(movies) {
@@ -76,45 +92,44 @@
         async function getLinks(id, name, type) {
             document.getElementById('m-title').innerText = name;
             document.getElementById('overlay').style.display = 'block';
-            streamsDiv.innerHTML = '<p style="text-align:center;">Fetching Torrentio links...</p>';
+            streamsDiv.innerHTML = '<p style="text-align:center;">Fetching links...</p>';
             
-            let season = 1, episode = 1;
+            let s = 1, e = 1;
             if (type === 'series') {
-                season = prompt("Season?", "1") || 1;
-                episode = prompt("Episode?", "1") || 1;
+                s = prompt("Season?", "1") || 1; e = prompt("Episode?", "1") || 1;
             }
 
             try {
-                // Using a more reliable proxy to avoid 403 errors
-                const target = type === 'movie' 
+                const api = type === 'movie' 
                     ? `https://torrentio.strem.io/stream/movie/${id}.json`
-                    : `https://torrentio.strem.io/stream/series/${id}:${season}:${episode}.json`;
+                    : `https://torrentio.strem.io/stream/series/${id}:${s}:${e}.json`;
 
-                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(target)}`);
-                const proxyData = await res.json();
-                const data = JSON.parse(proxyData.contents);
+                // Switched to AllOrigins proxy to fix the 403 Forbidden errors
+                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(api)}`);
+                const json = await res.json();
+                const data = JSON.parse(json.contents);
                 
                 streamsDiv.innerHTML = '';
                 if(!data.streams || data.streams.length === 0) {
-                    streamsDiv.innerHTML = '<p>No streams found.</p>';
+                    streamsDiv.innerHTML = '<p>No streams found. Try a different title.</p>';
                     return;
                 }
 
-                data.streams.forEach(s => {
-                    const row = document.createElement('div');
-                    row.className = 'stream-card';
-                    row.onclick = () => {
+                data.streams.forEach(stream => {
+                    const card = document.createElement('div');
+                    card.className = 'stream-card';
+                    card.onclick = () => {
                         const room = Math.random().toString(36).substring(7);
-                        window.location.href = `/player.html?room=${room}&videoUrl=${encodeURIComponent(s.url)}&title=${encodeURIComponent(name)}`;
+                        window.location.href = `/player.html?room=${room}&videoUrl=${encodeURIComponent(stream.url)}&title=${encodeURIComponent(name)}`;
                     };
-                    row.innerHTML = `<div><b>${s.name}</b><br><small>${s.title.split('\n')[1] || ''}</small></div><i class="fas fa-play"></i>`;
-                    streamsDiv.appendChild(row);
+                    card.innerHTML = `<div><b>${stream.name}</b><br><small>${stream.title.split('\n')[1] || ''}</small></div><i class="fas fa-play"></i>`;
+                    streamsDiv.appendChild(card);
                 });
-            } catch(e) { streamsDiv.innerHTML = '<p>Failed to load streams. Try another movie.</p>'; }
+            } catch(err) { streamsDiv.innerHTML = '<p>Proxy error. Try again.</p>'; }
         }
 
         function closeOverlay() { document.getElementById('overlay').style.display = 'none'; }
-        loadTrending();
+        init();
     </script>
 </body>
 </html>
