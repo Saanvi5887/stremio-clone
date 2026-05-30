@@ -62,29 +62,57 @@
 
         // 2. Click Movie -> Fetch Torrentio Links (Pure Addon Logic)
         async function showStreams(imdb, name) {
-            const overlay = document.getElementById('stream-overlay');
-            const list = document.getElementById('streamList');
-            document.getElementById('selectedTitle').innerText = `Links for ${name}`;
-            overlay.style.display = 'block';
-            list.innerHTML = 'Fetching Torrentio links...';
+    const overlay = document.getElementById('stream-overlay');
+    const list = document.getElementById('streamList');
+    document.getElementById('selectedTitle').innerText = `Links for ${name}`;
+    overlay.style.display = 'block';
+    list.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Fetching from Torrentio...</div>';
 
-            try {
-                const res = await fetch(`https://torrentio.strem.io/stream/movie/${imdb}.json`);
-                const data = await res.json();
-                list.innerHTML = '';
-                
-                data.streams.forEach(s => {
-                    const item = document.createElement('div');
-                    item.className = 'stream-item';
-                    item.onclick = () => {
-                        const room = Math.random().toString(36).substring(7);
-                        window.location.href = `/player.html?room=${room}&videoUrl=${encodeURIComponent(s.url)}&title=${encodeURIComponent(name)}`;
-                    };
-                    item.innerHTML = `<div><b>${s.name}</b><br><small>${s.title.split('\n')[1] || ''}</small></div><i class="fas fa-play-circle"></i>`;
-                    list.appendChild(item);
-                });
-            } catch(e) { list.innerHTML = 'Error loading links.'; }
+    try {
+        // We add a proxy prefix to bypass the "Error loading links"
+        const proxy = "https://corsproxy.io/?"; 
+        const target = `https://torrentio.strem.io/stream/movie/${imdb}.json`;
+        
+        const res = await fetch(proxy + encodeURIComponent(target));
+        const data = await res.json();
+        
+        list.innerHTML = '';
+        
+        if (!data.streams || data.streams.length === 0) {
+            list.innerHTML = '<p style="text-align:center;">No streams found for this movie.</p>';
+            return;
         }
+
+        data.streams.forEach(s => {
+            const item = document.createElement('div');
+            item.className = 'stream-item';
+            
+            // Clean up the Torrentio text data
+            const titleLines = s.title.split('\n');
+            const provider = s.name; // e.g., "Torrentio"
+            const metadata = titleLines[1] || "No size info";
+
+            item.onclick = () => {
+                const room = Math.random().toString(36).substring(7);
+                window.location.href = `/player.html?room=${room}&videoUrl=${encodeURIComponent(s.url)}&title=${encodeURIComponent(name)}`;
+            };
+
+            item.innerHTML = `
+                <div style="flex: 1;">
+                    <div style="font-weight:600; color:var(--accent);">${titleLines[0]}</div>
+                    <div style="font-size:11px; color:#666; margin-top:4px;">${metadata}</div>
+                </div>
+                <div style="background:rgba(184,193,236,0.1); padding:5px 10px; border-radius:8px; font-size:11px; font-weight:800; color:var(--accent);">
+                    ${provider}
+                </div>
+            `;
+            list.appendChild(item);
+        });
+    } catch(e) { 
+        console.error(e);
+        list.innerHTML = '<div style="text-align:center; color:#ff7373;">Failed to connect to Addon. Try again.</div>'; 
+    }
+}
 
         function closeOverlay() { document.getElementById('stream-overlay').style.display = 'none'; }
         
