@@ -6,29 +6,32 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 
-// This serves your HTML files from the "public" folder
+// This line is CRITICAL: It tells Express to serve your index.html
 app.use(express.static(path.join(__dirname, 'public')));
 
-// THE BRIDGE: Your server fetches the data so the browser doesn't get blocked
 app.get('/fetch-links', async (req, res) => {
-    try {
-        const { url } = req.query;
-        if (!url) return res.status(400).json({ error: "No URL provided" });
+    const targetUrl = req.query.url;
+    
+    if (!targetUrl) {
+        return res.status(400).send("No URL provided");
+    }
 
-        console.log(`Fetching from Torrentio: ${url}`);
+    try {
+        console.log("Server is attempting to fetch:", targetUrl);
         
-        const response = await axios.get(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0' } // Pretend to be a browser
+        const response = await axios.get(targetUrl, {
+            timeout: 10000, // Wait 10 seconds before giving up
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
         });
         
         res.json(response.data);
     } catch (error) {
-        console.error("Tunnel Error:", error.message);
-        res.status(500).json({ error: "Failed to reach Torrentio" });
+        console.error("Fetch failed:", error.message);
+        res.status(500).json({ error: "Torrentio connection failed", details: error.message });
     }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server is running! View it at http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
