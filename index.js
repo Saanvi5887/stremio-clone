@@ -1,41 +1,34 @@
 const express = require('express');
 const axios = require('axios');
-const http = require('http'); 
-const { Server } = require('socket.io');
 const path = require('path');
+const cors = require('cors');
 
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+app.use(cors());
 
-app.use(express.static(path.join(__dirname)));
+// This serves your HTML files from the "public" folder
+app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/trending', async (req, res) => {
+// THE BRIDGE: Your server fetches the data so the browser doesn't get blocked
+app.get('/fetch-links', async (req, res) => {
     try {
-        const response = await axios.get(`https://api.themoviedb.org/3/trending/movie/week?api_key=d800759469a13ad76fd7f48830a046a8`);
-        res.json(response.data.results);
-    } catch (e) { res.status(500).json([]); }
+        const { url } = req.query;
+        if (!url) return res.status(400).json({ error: "No URL provided" });
+
+        console.log(`Fetching from Torrentio: ${url}`);
+        
+        const response = await axios.get(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0' } // Pretend to be a browser
+        });
+        
+        res.json(response.data);
+    } catch (error) {
+        console.error("Tunnel Error:", error.message);
+        res.status(500).json({ error: "Failed to reach Torrentio" });
+    }
 });
 
-io.on('connection', (socket) => {
-    socket.on('join-room', (roomId, userId) => {
-        socket.join(roomId);
-        console.log(`User ${userId} joined room ${roomId}`);
-        // Broadcast to everyone else in the room that a new user joined
-        socket.to(roomId).emit('user-connected', userId);
-
-        socket.on('sync-event', (data) => {
-            socket.to(roomId).emit('apply-sync', data);
-        });
-
-        socket.on('play-movie', (data) => {
-            socket.to(roomId).emit('start-stream', data);
-        });
-
-        socket.on('disconnect', () => {
-            socket.to(roomId).emit('user-disconnected', userId);
-        });
-    });
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server is running! View it at http://localhost:${PORT}`);
 });
-
-server.listen(process.env.PORT || 5001, () => console.log('🚀 Sync Server Active'));
